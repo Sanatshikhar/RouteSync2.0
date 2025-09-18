@@ -51,11 +51,15 @@ const HomePage = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="relative mb-4">
+        <div 
+          className="relative mb-4 cursor-pointer"
+          onClick={() => navigate('/search-bus')}
+        >
           <input
             type="text"
             placeholder="Search your bus routes"
-            className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white"
+            className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white cursor-pointer"
+            readOnly
           />
           <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
