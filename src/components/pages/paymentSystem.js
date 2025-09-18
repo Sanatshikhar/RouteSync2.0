@@ -1,113 +1,112 @@
-import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+
+const AMOUNT = 1795;
+
+const PAYMENT_METHODS = [
+  {
+    key: 'wallet',
+    label: 'Wallet',
+    desc: 'Balance 250/-',
+    icon: '💳',
+    recommended: true,
+  },
+  { key: 'card', label: 'Credit card/ Debit card', desc: 'Visa, Mastercard, and more', icon: '💳' },
+  { key: 'netbanking', label: 'Net Banking', desc: 'Available for 40+ Banks', icon: '🏦' },
+  { key: 'paylater', label: 'Pay Later', desc: 'HDFC, ICICI, IDFC and more', icon: '🕒' },
+];
+
+const UPI_METHODS = [
+  { key: 'gpay', label: 'Gpay', icon: 'https://upload.wikimedia.org/wikipedia/commons/5/5b/Google_Pay_Logo.svg' },
+  { key: 'paytm', label: 'Paytm', icon: 'https://upload.wikimedia.org/wikipedia/commons/5/55/Paytm_logo.png' },
+  { key: 'phonepe', label: 'Phone pay', icon: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/PhonePe_Logo.png' },
+  { key: 'more', label: '+ 2 more', icon: '' },
+];
 
 const PaymentSystem = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const bookingDetails = location.state || {};
+  const [selected, setSelected] = useState('');
+  const [walletActive, setWalletActive] = useState(false);
 
-  const handlePayment = (paymentMethod) => {
-    // Here you would handle the actual payment processing
-    // For now, we'll simulate a successful payment
-    navigate('/ticket', {
-      state: {
-        ...bookingDetails,
-        paymentMethod,
-        paymentStatus: 'success',
-        transactionId: 'TXN' + Date.now()
-      }
-    });
+  const handleSelect = (key) => {
+    setSelected(key);
+    setWalletActive(key === 'wallet');
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F6F8FB] flex flex-col">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4">
-        <div className="max-w-md mx-auto flex items-center">
-          <button 
-            onClick={() => navigate(-1)}
-            className="p-2 -ml-2 rounded-full hover:bg-blue-700 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h2 className="text-lg font-semibold flex-1 text-center">Payment Method</h2>
-          <div className="w-10"></div>
+      <div className="bg-blue-600 text-white px-4 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button className="text-white text-2xl font-bold">&#8592;</button>
+          <div>
+            <div className="font-semibold text-lg">Payment method</div>
+            <div className="text-xs opacity-80">Kochi → Chennai</div>
+          </div>
+        </div>
+        <button className="text-white text-xl">&#8942;</button>
+      </div>
+
+      {/* Amount Payable */}
+      <div className="bg-white rounded-xl shadow p-6 mx-4 mt-6 mb-2 flex flex-col items-center">
+        <div className="text-xs text-gray-400 mb-1">Amount payable</div>
+        <div className="text-2xl font-bold">₹ {AMOUNT}</div>
+      </div>
+
+      {/* Recommended */}
+      <div className="bg-white rounded-xl shadow p-4 mx-4 mb-2">
+        <div className="font-semibold mb-2">Recommended</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">💳</span>
+            <span className="font-medium">Wallet</span>
+            <span className="text-xs text-gray-400 ml-2">Balance 250/-</span>
+          </div>
+          <input
+            type="radio"
+            checked={selected === 'wallet'}
+            onChange={() => handleSelect('wallet')}
+            className="accent-blue-600 w-5 h-5"
+          />
+        </div>
+        {walletActive && (
+          <button className="w-full py-2 rounded-lg bg-blue-600 text-white font-semibold mb-2">Pay now</button>
+        )}
+      </div>
+
+      {/* UPI Payment */}
+      <div className="bg-white rounded-xl shadow p-4 mx-4 mb-2">
+        <div className="font-semibold mb-2">UPI Payment</div>
+        <div className="flex gap-4 items-center">
+          {UPI_METHODS.map((m) => (
+            <div key={m.key} className="flex flex-col items-center gap-1">
+              {m.icon ? (
+                <img src={m.icon} alt={m.label} className="w-8 h-8 object-contain rounded-full bg-white border" />
+              ) : (
+                <span className="w-8 h-8 flex items-center justify-center text-lg font-bold bg-gray-100 rounded-full">...</span>
+              )}
+              <span className="text-xs mt-1">{m.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4">
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-          <h3 className="font-semibold text-lg mb-2">Booking Summary</h3>
-          <div className="space-y-2 text-sm text-gray-600">
-            <p>Bus Number: {bookingDetails.selectedBus?.number}</p>
-            <p>From: {bookingDetails.from}</p>
-            <p>To: {bookingDetails.to}</p>
-            <p>Date: {new Date(bookingDetails.date).toLocaleDateString()}</p>
-            <p>Fare: ₹{bookingDetails.selectedBus?.fare}</p>
+      {/* Other payment methods */}
+      <div className="bg-white rounded-xl shadow p-4 mx-4 mb-4">
+        <div className="font-semibold mb-2">Other payment methods</div>
+        {PAYMENT_METHODS.filter(m => !m.recommended).map((m) => (
+          <div key={m.key} className="flex items-center justify-between py-2 border-b last:border-b-0">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{m.icon}</span>
+              <span className="font-medium">{m.label}</span>
+              <span className="text-xs text-gray-400 ml-2">{m.desc}</span>
+            </div>
+            <input
+              type="radio"
+              checked={selected === m.key}
+              onChange={() => handleSelect(m.key)}
+              className="accent-blue-600 w-5 h-5"
+            />
           </div>
-        </div>
-
-        <div className="space-y-4">
-          <button
-            onClick={() => handlePayment('upi')}
-            className="w-full bg-white p-4 rounded-lg shadow-sm flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                <span className="text-blue-600">₹</span>
-              </div>
-              <div>
-                <h3 className="font-medium">UPI Payment</h3>
-                <p className="text-sm text-gray-500">Pay using any UPI app</p>
-              </div>
-            </div>
-            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={() => handlePayment('card')}
-            className="w-full bg-white p-4 rounded-lg shadow-sm flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-medium">Credit/Debit Card</h3>
-                <p className="text-sm text-gray-500">Pay using card</p>
-              </div>
-            </div>
-            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={() => handlePayment('netbanking')}
-            className="w-full bg-white p-4 rounded-lg shadow-sm flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-medium">Net Banking</h3>
-                <p className="text-sm text-gray-500">Pay using net banking</p>
-              </div>
-            </div>
-            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
+        ))}
       </div>
     </div>
   );
