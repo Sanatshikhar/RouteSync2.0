@@ -39,6 +39,12 @@ const HomePage = () => {
             <p className="text-gray-600">
               This is a sample homepage. You can start adding your content here.
             </p>
+            <button
+              onClick={() => navigate('/livet_track')}
+              className="mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-blue-700 transition-colors"
+            >
+              Show Bus Status Page
+            </button>
           </div>
         </div>
       </div>
