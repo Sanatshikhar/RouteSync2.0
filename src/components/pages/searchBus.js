@@ -68,7 +68,7 @@ const SearchBus = () => {
 
       <div className="max-w-md mx-auto p-4">
         {/* Trip Type */}
-        <div className="bg-white rounded-lg p-1 flex shadow-sm mb-4">
+        <div className="bg-blue-100 rounded-lg p-1 flex shadow-sm mb-4">
           <button
             className={`flex-1 py-2 px-4 rounded-md transition-colors ${
               tripType === "oneway"
@@ -135,7 +135,7 @@ const SearchBus = () => {
             />
             <button
               onClick={setToday}
-              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+              className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors"
             >
               Today
             </button>
