@@ -8,6 +8,11 @@ import LiveTracking from './components/pages/livet_track';
 import PaymentSystem from './components/pages/paymentSystem';
 import Ticket from './components/pages/ticket';
 import Boarding from './components/pages/boarding';
+import Notifications from './components/pages/notifications';
+import Wallet from './components/pages/wallet';
+import Profile from './components/pages/profile';
+import BookingHistory from './components/pages/bookingHistory';
+import Settings from './components/pages/settings';
 
 function App() {
   return (
