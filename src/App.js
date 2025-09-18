@@ -2,6 +2,7 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './components/pages/authpage';
 import HomePage from './components/pages/homepage';
+import ListBus from './components/pages/listBus';
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
           <Route path="/" element={<Navigate to="/auth" />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/homepage" element={<HomePage />} />
+          <Route path="/list-bus" element={<ListBus />} />
         </Routes>
       </div>
     </Router>
