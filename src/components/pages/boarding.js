@@ -5,6 +5,28 @@ const Boarding = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const bookingDetails = location.state || {};
+
+  // Define boarding points data
+  const boardingPoints = [
+    { id: 1, name: "KSRTC Bus Stand", time: "07:30", date: "05 Nov" },
+    { id: 2, name: "Vytilla Hub", time: "07:30", date: "05 Nov" },
+    { id: 3, name: "Palarivattom", time: "07:35", date: "05 Nov" },
+    { id: 4, name: "Edapally", time: "07:40", date: "05 Nov" },
+    { id: 5, name: "Kalamassery", time: "07:55", date: "05 Nov" },
+    { id: 6, name: "Athani (EKM)", time: "08:15", date: "05 Nov" },
+    { id: 7, name: "Atingal", time: "08:25", date: "05 Nov" },
+  ];
+
+  // Define dropping points data
+  const droppingPoints = [
+    { id: 1, name: "Thindivanam", time: "05:25", date: "06 Nov" },
+    { id: 2, name: "Madhuranthagam", time: "06:05", date: "06 Nov" },
+    { id: 3, name: "Chengalpettu", time: "06:25", date: "06 Nov" },
+    { id: 4, name: "Mahendra City", time: "06:35", date: "06 Nov" },
+    { id: 5, name: "Urapakkam", time: "06:55", date: "06 Nov" },
+    { id: 6, name: "Kilambakkam Bus Stand", time: "07:05", date: "06 Nov" },
+    { id: 7, name: "Koyambedu", time: "07:45", date: "06 Nov" },
+  ];
   const [selectedBoarding, setSelectedBoarding] = useState(null);
   const [selectedDropping, setSelectedDropping] = useState(null);
   const [passengerDetails, setPassengerDetails] = useState({
@@ -31,25 +53,7 @@ const Boarding = () => {
     });
   };
 
-const boardingPoints = [
-  { id: 1, name: "KSRTC Bus Stand", time: "07:30", date: "05 Nov" },
-  { id: 2, name: "Vytilla Hub", time: "07:30", date: "05 Nov" },
-  { id: 3, name: "Palarivattom", time: "07:35", date: "05 Nov" },
-  { id: 4, name: "Edapally", time: "07:40", date: "05 Nov" },
-  { id: 5, name: "Kalamassery", time: "07:55", date: "05 Nov" },
-  { id: 6, name: "Athani (EKM)", time: "08:15", date: "05 Nov" },
-  { id: 7, name: "Atingal", time: "08:25", date: "05 Nov" },
-];
 
-const droppingPoints = [
-  { id: 1, name: "Thindivanam", time: "05:25", date: "06 Nov" },
-  { id: 2, name: "Madhuranthagam", time: "06:05", date: "06 Nov" },
-  { id: 3, name: "Chengalpettu", time: "06:25", date: "06 Nov" },
-  { id: 4, name: "Mahendra City", time: "06:35", date: "06 Nov" },
-  { id: 5, name: "Urapakkam", time: "06:55", date: "06 Nov" },
-  { id: 6, name: "Kilambakkam Bus Stand", time: "07:05", date: "06 Nov" },
-  { id: 7, name: "Koyambedu", time: "07:45", date: "06 Nov" },
-];
 
   return (
     <div className="min-h-screen bg-gray-50">
