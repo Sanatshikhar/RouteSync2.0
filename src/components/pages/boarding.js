@@ -5,6 +5,17 @@ const Boarding = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const bookingDetails = location.state || {};
+  const [boarding, setBoarding] = useState(null);
+  const [dropping, setDropping] = useState(null);
+  const [selectedBoarding, setSelectedBoarding] = useState(null);
+  const [selectedDropping, setSelectedDropping] = useState(null);
+  const [passengerDetails, setPassengerDetails] = useState({
+    fullName: '',
+    email: '',
+    mobile: '',
+    age: '',
+    gender: ''
+  });
 
   // Define boarding points data
   const boardingPoints = [
@@ -27,15 +38,6 @@ const Boarding = () => {
     { id: 6, name: "Kilambakkam Bus Stand", time: "07:05", date: "06 Nov" },
     { id: 7, name: "Koyambedu", time: "07:45", date: "06 Nov" },
   ];
-  const [selectedBoarding, setSelectedBoarding] = useState(null);
-  const [selectedDropping, setSelectedDropping] = useState(null);
-  const [passengerDetails, setPassengerDetails] = useState({
-    fullName: '',
-    email: '',
-    mobile: '',
-    age: '',
-    gender: ''
-  });
 
   const handleContinue = () => {
     if (!selectedBoarding || !selectedDropping || !passengerDetails.fullName) {
@@ -215,80 +217,3 @@ const Boarding = () => {
 };
 
 export default Boarding;
-
-export function BusBooking() {
-  const [boarding, setBoarding] = useState(null);
-  const [dropping, setDropping] = useState(null);
-  const cost = 1795;
-
-  return (
-    <div className="flex flex-col items-center w-full min-h-screen bg-gray-100 p-4">
-      <h1 className="text-2xl font-bold text-blue-600 mb-4">Kochi → Chennai</h1>
-
-      {/* Boarding Point */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow p-4 mb-4">
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">Select Boarding Point</h2>
-        {boardingPoints.map((bp) => (
-          <label
-            key={bp.id}
-            className={`flex justify-between items-center border rounded-lg p-3 mb-2 cursor-pointer ${
-              boarding === bp.id ? "border-blue-500 bg-blue-50" : "border-gray-300"
-            }`}
-          >
-            <input
-              type="radio"
-              name="boarding"
-              className="hidden"
-              onChange={() => setBoarding(bp.id)}
-              checked={boarding === bp.id}
-            />
-            <div>
-              <p className="font-medium">{bp.name}</p>
-              <p className="text-sm text-gray-500">{bp.date}</p>
-            </div>
-            <span className="font-bold">{bp.time}</span>
-          </label>
-        ))}
-      </div>
-
-      {/* Dropping Point */}
-      <div className="w-full max-w-md bg-white rounded-2xl shadow p-4 mb-4">
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">Select Dropping Point</h2>
-        {droppingPoints.map((dp) => (
-          <label
-            key={dp.id}
-            className={`flex justify-between items-center border rounded-lg p-3 mb-2 cursor-pointer ${
-              dropping === dp.id ? "border-blue-500 bg-blue-50" : "border-gray-300"
-            }`}
-          >
-            <input
-              type="radio"
-              name="dropping"
-              className="hidden"
-              onChange={() => setDropping(dp.id)}
-              checked={dropping === dp.id}
-            />
-            <div>
-              <p className="font-medium">{dp.name}</p>
-              <p className="text-sm text-gray-500">{dp.date}</p>
-            </div>
-            <span className="font-bold">{dp.time}</span>
-          </label>
-        ))}
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="fixed bottom-0 w-full max-w-md bg-white border-t shadow p-4 flex justify-between items-center">
-        <p className="text-lg font-semibold">₹ {cost}</p>
-        <button
-          disabled={!boarding || !dropping}
-          className={`px-6 py-2 rounded-xl text-white font-bold ${
-            boarding && dropping ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-400"
-          }`}
-        >
-          Continue
-        </button>
-      </div>
-    </div>
-  );
-}
