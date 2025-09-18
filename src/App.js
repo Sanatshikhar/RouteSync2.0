@@ -28,6 +28,11 @@ function App() {
           <Route path="/boarding" element={<Boarding />} />
           <Route path="/payment" element={<PaymentSystem />} />
           <Route path="/ticket" element={<Ticket />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/wallet" element={<Wallet />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/booking-history" element={<BookingHistory />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
     </Router>
