@@ -24,10 +24,6 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    if (user) {
-      fetchUserWallet(user.id);
-    }
-
     return () => {
       unsubscribe();
     };

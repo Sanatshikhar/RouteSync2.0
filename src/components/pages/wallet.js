@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BottomNav from '../BottomNav';
 import useWallet from '../../hooks/useWallet';
 
 const AMOUNTS = [100, 200, 500, 1000, 2000];
@@ -132,6 +133,8 @@ const Wallet = () => {
       </div>
     </div>
   );
+  {/* ...existing code... */}
+  <BottomNav />
 };
 
 export default Wallet;

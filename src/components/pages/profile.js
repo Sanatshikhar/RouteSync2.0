@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import BottomNav from '../BottomNav';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -61,8 +62,12 @@ const Profile = () => {
           </button>
         </div>
       </div>
+        <BottomNav />
     </div>
   );
+  {/* ...existing code... */}
+  <BottomNav />
+  {/* ...existing code... */}
 };
 
 export default Profile;

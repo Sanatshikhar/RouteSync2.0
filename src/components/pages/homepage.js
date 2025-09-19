@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PocketBase from 'pocketbase';
+import BottomNav from '../BottomNav';
 import { useAuth } from '../../contexts/AuthContext';
+
+// Initialize PocketBase client
+const pb = new PocketBase('http://127.0.0.1:8090'); // Replace with your PocketBase URL
 
 const HomePage = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState('');
+  const [nearbyRoutes, setNearbyRoutes] = useState([]); // Store nearby routes
+  const [loadingNearby, setLoadingNearby] = useState(true); // Loading state for nearby routes
+  const [searchValue, setSearchValue] = useState(''); // For location search
 
   // Redirect if not logged in
   useEffect(() => {
@@ -15,9 +23,69 @@ const HomePage = () => {
     }
   }, [user, navigate]);
 
+  // Fetch 3 nearby routes from PocketBase on mount
+  useEffect(() => {
+    const fetchNearbyRoutes = async () => {
+      try {
+        setLoadingNearby(true);
+        // Fetch 3 bus routes collection
+        const records = await pb.collection('routes').getList(1, 3, {
+          sort: '-created',
+          expand: 'stops', // Expand stops relation if needed
+        });
+        setNearbyRoutes(records.items);
+      } catch (error) {
+        console.error('Error fetching nearby routes:', error);
+      } finally {
+        setLoadingNearby(false);
+      }
+    };
+
+    fetchNearbyRoutes();
+  }, []);
+
+  // Function to handle search and redirect
+  const handleSearchRedirect = () => {
+    if (searchValue.trim()) {
+      navigate('/search-bus', { 
+        state: { 
+          destination: searchValue 
+        } 
+      });
+    } else {
+      navigate('/search-bus');
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/auth');
+  };
+
+  // Function to format stops from JSON
+  const formatStops = (stops) => {
+    if (!stops) return 'No stops information';
+    
+    // If stops is a JSON string, parse it
+    if (typeof stops === 'string') {
+      try {
+        const parsedStops = JSON.parse(stops);
+        if (Array.isArray(parsedStops)) {
+          return parsedStops.map(stop => stop.name || stop).join(' → ');
+        }
+        return 'Invalid stops format';
+      } catch (e) {
+        // If parsing fails, return as is
+        return stops;
+      }
+    }
+    
+    // If stops is already an array
+    if (Array.isArray(stops)) {
+      return stops.map(stop => stop.name || stop).join(' → ');
+    }
+    
+    return 'No stops information';
   };
 
   return (
@@ -26,13 +94,6 @@ const HomePage = () => {
       <div className="bg-blue-600 text-white p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center space-x-2">
-            {user && (
-              <img
-                src={user.avatar ? user.avatar : `https://picsum.photos/seed/${user.name}/200/300`}
-                alt="Profile"
-                className="w-12 h-12 rounded-full"
-              />
-            )}
             <div>
               <p className="text-sm">Good morning</p>
               <p className="font-semibold">{user?.name || 'User'}</p>
@@ -153,20 +214,30 @@ const HomePage = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
+        {/* Search Bar - Modified to handle location input */}
         <div 
-          className="relative mb-4 cursor-pointer"
-          onClick={() => navigate('/search-bus')}
+          className="relative mb-4"
         >
           <input
             type="text"
             placeholder="Search your bus routes"
-            className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white cursor-pointer"
-            readOnly
+            className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSearchRedirect();
+              }
+            }}
           />
-          <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <button
+            onClick={handleSearchRedirect}
+            className="absolute right-3 top-2.5 text-gray-400 hover:text-blue-600"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -175,101 +246,105 @@ const HomePage = () => {
         {/* Quick Actions */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="text-center">
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
-              <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <span className="text-sm">Live</span>
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+          <button onClick={() => navigate('/live-tracking')} aria-label="Live Tracking">
+            <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+        </div>
+        <span className="text-sm">Live Tracking</span>
           </div>
           <div className="text-center">
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
-              <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <span className="text-sm">tracking</span>
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+          <button onClick={() => navigate('/list-bus')} aria-label="Bus Tracking">
+            <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+        </div>
+        <span className="text-sm">Bus Tracking</span>
           </div>
           <div className="text-center">
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
-              <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
-            </div>
-            <span className="text-sm">tour</span>
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+          <button onClick={() => navigate('/wallet')} aria-label="Wallet">
+            <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+          </button>
+        </div>
+        <span className="text-sm">Wallet</span>
           </div>
         </div>
 
-        {/* Nearby Stops */}
+        {/* Nearby Stops - Now fetching from PocketBase */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Nearby Stops</h2>
-          <div className="bg-white rounded-xl p-4 mb-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-medium">Vazhakala bus stop</h3>
-                <p className="text-sm text-gray-500">Next bus in 5 mins</p>
-                <p className="text-sm text-gray-500">500 mtrs</p>
+          {loadingNearby ? (
+            <div className="text-center py-4 text-gray-500">Loading nearby routes...</div>
+          ) : nearbyRoutes.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">No nearby routes available.</div>
+          ) : (
+            nearbyRoutes.map((route) => (
+              <div key={route.id} className="bg-white rounded-xl p-4 mb-3">
+                <div className="flex justify-between items-center">
+                  <div className="flex-1">
+                    <h3 className="font-medium">{route.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {route.start_point} → {route.end_point}
+                    </p>
+                    {/* Display stops in text form */}
+                    <p className="text-sm text-gray-600 mt-1">
+                      Stops: {formatStops(route.stops)}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Next bus in 5 mins • 500 mtrs
+                    </p>
+                  </div>
+                  {/* Book Bus Icon */}
+                  <button 
+                    onClick={() => navigate(`/route/${route.id}`)}
+                    className="ml-2 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    aria-label="Book Bus"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <div className="w-16 h-16 bg-gray-200 rounded-lg"></div>
-            </div>
-          </div>
+            ))
+          )}
         </div>
 
         {/* Offers and Coupons */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Offers and Coupons</h2>
           <div className="bg-green-50 rounded-xl p-4 mb-3">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-medium">Save upto Rs 200 on bus tickets</h3>
-                <p className="text-sm text-gray-500">Valid till 30 Dec</p>
-                <button 
-                  onClick={() => navigate('/list-bus')}
-                  className="mt-2 bg-blue-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                >
-                  Book now
-                </button>
-              </div>
-              <div className="w-24 h-16 bg-white rounded-lg shadow flex items-center justify-center">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-              </div>
-            </div>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-medium">Save upto Rs 200 on bus tickets</h3>
+            <p className="text-sm text-gray-500">Valid till 30 Dec</p>
+            <button
+          onClick={() => navigate('/list-bus')}
+          className="mt-2 bg-blue-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+            >
+          Book now
+            </button>
+          </div>
+          <div className="w-24 h-16 bg-white rounded-lg shadow flex items-center justify-center">
+            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+          </div>
+        </div>
           </div>
         </div>
 
         {/* Free space for bottom maps and easy scroll */}
         <div className="h-24 md:h-32 lg:h-40"></div>
         {/* Bottom Navigation */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
-          <div className="flex justify-around">
-            <button className="flex flex-col items-center text-blue-600">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-              </svg>
-              <span className="text-xs mt-1">Home</span>
-            </button>
-            <button className="flex flex-col items-center text-gray-500">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-xs mt-1">Booking</span>
-            </button>
-            <button className="flex flex-col items-center text-gray-500">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <span className="text-xs mt-1">Tickets</span>
-            </button>
-            <button className="flex flex-col items-center text-gray-500">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="text-xs mt-1">Profile</span>
-            </button>
-          </div>
-        </div>
+        <BottomNav />
       </div>
     </div>
   );

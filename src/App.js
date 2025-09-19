@@ -7,6 +7,7 @@ import SearchBus from './components/pages/searchBus';
 import LiveTracking from './components/pages/livet_track';
 import PaymentSystem from './components/pages/paymentSystem';
 import Ticket from './components/pages/ticket';
+import TicketList from './components/pages/ticketList';
 import Boarding from './components/pages/boarding';
 import Notifications from './components/pages/notifications';
 import Wallet from './components/pages/wallet';
@@ -29,7 +30,8 @@ function App() {
           <Route path="/live-tracking" element={<LiveTracking />} />
           <Route path="/boarding" element={<Boarding />} />
           <Route path="/payment" element={<PaymentSystem />} />
-          <Route path="/ticket" element={<Ticket />} />
+          <Route path="/ticket" element={<TicketList />} />
+          <Route path="/ticket/:id" element={<Ticket />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/profile" element={<Profile />} />

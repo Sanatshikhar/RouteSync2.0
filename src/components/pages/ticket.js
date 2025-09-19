@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const TicketConfirmation = ({ onViewTicket }) => {
   const navigate = useNavigate();
@@ -90,7 +90,11 @@ const TicketDetails = () => (
 
 const TicketPage = () => {
   const [showDetails, setShowDetails] = useState(false);
-  return showDetails ? <TicketDetails /> : <TicketConfirmation onViewTicket={() => setShowDetails(true)} />;
+  const { id } = useParams();
+
+  // You can fetch ticket details using id here if needed
+  // For now, just pass id to TicketDetails for display
+  return showDetails ? <TicketDetails ticketId={id} /> : <TicketConfirmation onViewTicket={() => setShowDetails(true)} />;
 };
 
 export default TicketPage;
