@@ -3,16 +3,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 import useGeolocation from "../../hooks/useGeolocation";
 import Map from "../Map";
 import moBusService from "../../services/moBusService";
+import routingService from "../../services/routingService";
 
 const LivetTrack = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { bus: passedBus, from, to } = location.state || {};
+  const { bus: passedBus, from, to, route: passedRoute } = location.state || {};
 
   // Debug log to see what data is passed
   useEffect(() => {
-    console.log("LivetTrack received data:", { passedBus, from, to });
-  }, [passedBus, from, to]);
+    console.log("LivetTrack received data:", { passedBus, from, to, passedRoute });
+  }, [passedBus, from, to, passedRoute]);
 
   const [tab, setTab] = useState("Live status");
   const { location: userLocation } = useGeolocation();
@@ -23,6 +24,10 @@ const LivetTrack = () => {
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [busStopsTimeline, setBusStopsTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [routeData, setRouteData] = useState(null);
+  const [startLocation, setStartLocation] = useState(null);
+  const [endLocation, setEndLocation] = useState(null);
+  const [routeBounds, setRouteBounds] = useState(null);
 
   // Monitor online status
   useEffect(() => {
@@ -60,6 +65,72 @@ const LivetTrack = () => {
 
     return () => clearInterval(interval);
   }, [isOnline, currentBus, selectedRoute]);
+
+  // Calculate route when from/to locations are provided
+  useEffect(() => {
+    const calculateRoute = async () => {
+      if (from && to) {
+        try {
+          console.log('Calculating route from', from, 'to', to);
+          
+          // Get coordinates for from/to locations
+          const fromStopData = moBusService.getStopDetails(from);
+          const toStopData = moBusService.getStopDetails(to);
+          
+          if (fromStopData.coordinates && toStopData.coordinates) {
+            const startCoords = {
+              lat: fromStopData.coordinates.lat,
+              lng: fromStopData.coordinates.lng,
+              name: from
+            };
+            const endCoords = {
+              lat: toStopData.coordinates.lat,
+              lng: toStopData.coordinates.lng,
+              name: to
+            };
+            
+            setStartLocation(startCoords);
+            setEndLocation(endCoords);
+            
+            // Get route from routing service
+            const route = await routingService.getRoute(startCoords, endCoords);
+            setRouteData(route);
+            
+            // Calculate bounds for auto-zoom
+            if (route && route.coordinates && route.coordinates.length > 1) {
+              const bounds = calculateRouteBounds(route.coordinates);
+              setRouteBounds(bounds);
+            }
+            
+            console.log('Route calculated:', route);
+          }
+        } catch (error) {
+          console.error('Error calculating route:', error);
+        }
+      }
+    };
+    
+    calculateRoute();
+  }, [from, to]);
+  
+  // Calculate route bounds for auto-zoom
+  const calculateRouteBounds = (coordinates) => {
+    if (!coordinates || coordinates.length === 0) return null;
+    
+    let minLat = coordinates[0][0];
+    let maxLat = coordinates[0][0];
+    let minLng = coordinates[0][1];
+    let maxLng = coordinates[0][1];
+    
+    coordinates.forEach(([lat, lng]) => {
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+    });
+    
+    return [[minLat, minLng], [maxLat, maxLng]];
+  };
 
   // Load all bus stops and initialize with real bus data
   useEffect(() => {
@@ -427,15 +498,63 @@ const LivetTrack = () => {
         {/* Map/Timeline Content */}
         {tab === "Live status" ? (
           <div className="px-4 -mt-4">
+            {/* Route Info Card (if route data available) */}
+            {routeData && startLocation && endLocation && (
+              <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 013.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    Route Overview
+                  </h3>
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    routeData.source === 'osrm' || routeData.source === 'openrouteservice'
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {routeData.source === 'osrm' ? '🛣️ OSRM' :
+                     routeData.source === 'openrouteservice' ? '🌐 OpenRoute' : '📱 Offline'}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {routeData.duration ? Math.round(routeData.duration / 60) : 'N/A'} min
+                    </div>
+                    <div className="text-sm text-gray-600">Duration</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {routeData.distance ? (routeData.distance / 1000).toFixed(1) : 'N/A'} km
+                    </div>
+                    <div className="text-sm text-gray-600">Distance</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Estimated Bus Fare:</span>
+                  <span className="font-semibold text-green-600">
+                    ₹{routeData.distance ? routingService.estimateIndianBusFare(routeData.distance) : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            )}
+            
             {/* Map Section */}
             <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-              <div className="relative h-48 bg-gray-100 rounded-xl overflow-hidden mb-4">
+              <div className="relative h-64 bg-gray-100 rounded-xl overflow-hidden mb-4">
                 <Map
-                  center={mapCenter}
-                  zoom={14}
-                  height={192}
+                  center={routeBounds ? null : mapCenter}
+                  zoom={routeBounds ? 10 : 14}
+                  height={256}
                   buses={mockBusForMap}
                   userLocation={userLocation}
+                  route={routeData?.coordinates || []}
+                  startLocation={startLocation}
+                  endLocation={endLocation}
+                  routeBounds={routeBounds}
                   busStops={allBusStops.map((stop) => ({
                     id: stop.name,
                     name: stop.name,
@@ -629,7 +748,7 @@ const LivetTrack = () => {
                   : "text-gray-600 hover:text-gray-800"
               }`}
             >
-              {tabName}
+              {tabName === "Live status" && routeData ? "Route Map" : tabName}
             </button>
           ))}
         </div>
