@@ -62,12 +62,11 @@ const Profile = () => {
           </button>
         </div>
       </div>
-        <BottomNav />
+      
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
-  {/* ...existing code... */}
-  <BottomNav />
-  {/* ...existing code... */}
 };
 
 export default Profile;

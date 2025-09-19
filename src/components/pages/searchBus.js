@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBuses } from '../../hooks/useBuses';
 import useGeolocation from '../../hooks/useGeolocation';
-import moBusService from '../../services/moBusService';
+import dbService from '../../services/dbService';
 import pb from '../../services/pocketbase';
+import BottomNav from '../BottomNav';
 
 const SearchBus = () => {
   const navigate = useNavigate();
@@ -22,8 +23,16 @@ const SearchBus = () => {
   useEffect(() => {
     // Handle location passed from HomePage
     const locationState = location.state;
-    if (locationState && locationState.destination) {
-      setTo(locationState.destination);
+    if (locationState) {
+      if (locationState.from) {
+        setFrom(locationState.from);
+      }
+      if (locationState.to) {
+        setTo(locationState.to);
+      }
+      if (locationState.destination) {
+        setTo(locationState.destination);
+      }
     }
 
     // Load recent searches from local storage
@@ -180,7 +189,7 @@ const SearchBus = () => {
       }));
     } catch (dbError) {
       console.log('Database not available, using local routes:', dbError.message);
-      routes = moBusService.findRoutesBetweenStops(from, to);
+      routes = [];
     }
     
     navigate('/listBus', { 
@@ -232,12 +241,12 @@ const SearchBus = () => {
   const [fromSuggestions, setFromSuggestions] = useState([]);
   const [toSuggestions, setToSuggestions] = useState([]);
 
-  const handleFromChange = (e) => {
+  const handleFromChange = async (e) => {
     const value = e.target.value;
     setFrom(value);
     if (value.length > 0) {
-      const matches = moBusService.searchStops(value);
-      setFromSuggestions(matches.map(stop => stop.name));
+      const matches = await dbService.getStopSuggestions(value);
+      setFromSuggestions(matches);
     } else {
       setFromSuggestions([]);
     }
@@ -248,12 +257,12 @@ const SearchBus = () => {
     }
   };
 
-  const handleToChange = (e) => {
+  const handleToChange = async (e) => {
     const value = e.target.value;
     setTo(value);
     if (value.length > 0) {
-      const matches = moBusService.searchStops(value);
-      setToSuggestions(matches.map(stop => stop.name));
+      const matches = await dbService.getStopSuggestions(value);
+      setToSuggestions(matches);
     } else {
       setToSuggestions([]);
     }
@@ -292,7 +301,7 @@ const SearchBus = () => {
       } catch (dbError) {
         console.log('Database not available, using local routes:', dbError.message);
         // Fallback to local data
-        routes = moBusService.findRoutesBetweenStops(fromLocation, toLocation);
+        routes = await dbService.findRoutesBetweenStops(fromLocation, toLocation);
       }
       
       setFoundRoutes(routes);
@@ -325,7 +334,7 @@ const SearchBus = () => {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4">
+      <div className="max-w-md mx-auto p-4 pb-20">
         {/* Trip Type */}
         <div className="bg-blue-100 rounded-lg p-1 flex shadow-sm mb-4">
           <button
@@ -448,7 +457,7 @@ const SearchBus = () => {
         </button>
 
         {/* Location Status */}
-        {isLoadingLocation ? (
+        {/* {isLoadingLocation ? (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
             <div className="flex items-center gap-3 mb-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
@@ -487,7 +496,7 @@ const SearchBus = () => {
               Please allow location access or enter your source and destination manually
             </div>
           </div>
-        ) : null}
+        ) : null} */}
 
 
 
@@ -622,6 +631,9 @@ const SearchBus = () => {
           </div>
         </div>
       </div>
+      
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }

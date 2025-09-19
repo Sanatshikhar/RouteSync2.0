@@ -2,13 +2,13 @@
 const PocketBase = require('pocketbase/cjs');
 
 async function testDatabase() {
-  const pb = new PocketBase('http://127.0.0.1:8090');
+  const pb = new PocketBase('https://routesync.studentvault.xyz');
   
   try {
     console.log('Testing PocketBase connection...');
     
     // Test basic connection
-    const health = await fetch('http://127.0.0.1:8090/api/health');
+    const health = await fetch('https://routesync.studentvault.xyz/api/health');
     console.log('Health check:', health.status);
     
     // Test without authentication first
@@ -40,7 +40,12 @@ async function testDatabase() {
       if (routes.length > 0) {
         console.log('📋 Sample route data:');
         routes.forEach(route => {
-          console.log(`  🛣️  Route ${route.route_number}: ${route.start_stop} → ${route.end_stop}`);
+          console.log(`  🛣️  Route ${route.name}: ${route.start_point} → ${route.end_point}`);
+          console.log(`      Distance: ${route.distance}km, Duration: ${route.duration}min`);
+          if (route.stops) {
+            const stops = typeof route.stops === 'string' ? JSON.parse(route.stops) : route.stops;
+            console.log(`      Stops: ${Array.isArray(stops) ? stops.slice(0, 3).join(', ') : 'N/A'}`);
+          }
         });
       }
     } catch (routeError) {
