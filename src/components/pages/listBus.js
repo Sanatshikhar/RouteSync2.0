@@ -37,26 +37,42 @@ const ListBus = () => {
         
         console.log('Getting route from:', startCoords, 'to:', endCoords);
         
-        // Get real route from OpenRouter
+        // Calculate straight-line distance for validation
+        const straightDistance = moBusService.calculateDistance(
+          startCoords.lat, startCoords.lng, endCoords.lat, endCoords.lng
+        );
+        console.log('Straight-line distance:', straightDistance.toFixed(2), 'km');
+        
+        // Get route from API
         const routeData = await routingService.getRoute(startCoords, endCoords);
         
         if (routeData && routeData.distance && routeData.duration) {
+          const apiDistanceKm = routeData.distance / 1000;
+          console.log('API returned distance:', apiDistanceKm.toFixed(2), 'km');
+          
+          // Validate API result - if it's more than 1.8x straight line, use fallback
+          if (apiDistanceKm > straightDistance * 1.8) {
+            console.log('⚠️ API distance seems incorrect, using fallback calculation');
+            return {
+              distance: Math.min(straightDistance * 1.4, 8), // Max 8km for city routes
+              duration: Math.round((straightDistance * 1.4 / 25) * 60), // 25 km/h avg speed
+              source: 'corrected_fallback'
+            };
+          }
+          
           return {
-            distance: routeData.distance / 1000, // Convert to km
+            distance: apiDistanceKm,
             duration: Math.round(routeData.duration / 60), // Convert to minutes
             source: routeData.source || 'online'
           };
         }
       }
     } catch (error) {
-      console.log('OpenRouteService not available:', error.message);
-      
-      // Instead of using inaccurate fallback, return null to indicate failure
-      return null;
+      console.log('Routing API failed:', error.message);
     }
     
-    // If we reach here, routing failed
-    return null;
+    // Use fallback calculation
+    return calculateFallbackRouteData(fromStop, toStop);
   };
 
   // Fallback route calculation
@@ -183,9 +199,11 @@ const ListBus = () => {
       console.log('Route data from OpenRouteService:', routeData);
       
       // Handle route data with proper fallbacks
-      const safeDistance = routeData.distance || 8.5;
-      const safeDuration = routeData.duration || 20;
-      const safeSource = routeData.source || 'estimated';
+      const safeDistance = routeData?.distance || 8.5;
+      const safeDuration = routeData?.duration || 20;
+      const safeSource = routeData?.source || 'estimated';
+      
+      console.log('Final route data used:', { distance: safeDistance, duration: safeDuration, source: safeSource });
       
       // Try to fetch real buses from PocketBase
       let realBuses = [];
