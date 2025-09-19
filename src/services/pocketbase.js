@@ -17,7 +17,7 @@ export async function getRoutes() {
 
 // Example: Create a booking
 export async function createBooking(data) {
-  return await pb.collection('seat_bookings').create(data);
+  return await pb.collection('booking').create(data);
 }
 
 // Example: Auth login

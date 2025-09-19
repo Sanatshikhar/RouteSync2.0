@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import pb from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
 
-export const useWallet = () => {
+const useWallet = () => {
   const { user } = useAuth();
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -59,35 +59,52 @@ export const useWallet = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
+  useEffect(() => {
+    let isSubscribed = true;
+    
+    const initWallet = async () => {
+      if (user?.id && isSubscribed) {
+        await fetchWallet();
+      } else if (!user?.id && isSubscribed) {
+        // Reset state when user logs out
+        setWallet(null);
+        setTransactions([]);
+        setError(null);
+        setLoading(false);
+      }
+    };
+
+    initWallet();
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isSubscribed = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Add money to wallet
   const addMoney = async (amount) => {
     if (!user?.id) throw new Error('User not authenticated');
     if (!amount || amount <= 0) throw new Error('Invalid amount');
     if (!wallet?.id) throw new Error('Wallet not initialized');
-    
     setLoading(true);
     setError(null);
-    
     try {
-      // Start a transaction-like operation
       const updatedWallet = await pb.collection('wallet').update(wallet.id, {
         balance: wallet.balance + amount,
         last_updated: new Date().toISOString()
       });
-
       const payment = await pb.collection('payments').create({
         user_id: user.id,
-        wallet: wallet.id,
-        amount: amount,
+        wallet_id: wallet.id,
+        amount,
         method: 'deposit',
-        status: 'completed',
         timestamp: new Date().toISOString()
       });
-
       setWallet(updatedWallet);
       setTransactions(prev => [payment, ...prev]);
-      
       return { wallet: updatedWallet, payment };
     } catch (err) {
       console.error('Error adding money:', err);
@@ -97,18 +114,6 @@ export const useWallet = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchWallet();
-    } else {
-      // Reset state when user logs out
-      setWallet(null);
-      setTransactions([]);
-      setError(null);
-      setLoading(false);
-    }
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     wallet,

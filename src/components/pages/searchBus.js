@@ -16,16 +16,24 @@ const SearchBus = () => {
   useEffect(() => {
     // Load available routes for autocomplete
     const loadRoutes = async () => {
-      try {
-        const routes = await pb.collection('routes').getFullList();
-        const uniqueLocations = new Set();
-        routes.forEach(route => {
+    try {
+      const routes = await pb.collection('routes').getFullList();
+      const uniqueLocations = new Set();
+      routes.forEach(route => {
           uniqueLocations.add(route.start_point);
           uniqueLocations.add(route.end_point);
         });
         setAvailableRoutes(Array.from(uniqueLocations));
       } catch (err) {
+      if (err.name === 'AbortError') {
+        console.error('Request was aborted.');
+        // Optionally show a message to the user
+      } else if (err.code === 404) {
+        console.error('Routes not found.');
+        // Optionally show a message to the user
+      } else {
         console.error('Error loading routes:', err);
+      }
       }
     };
     loadRoutes();

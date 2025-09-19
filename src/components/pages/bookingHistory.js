@@ -49,6 +49,7 @@ const BookingHistory = () => {
 
   const BookingCard = ({ booking }) => (
     <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+      <img src={`https://picsum.photos/seed/${booking.operator}/200/300`} alt="Bus" style={{width: '100%', borderRadius: '8px', marginBottom: '8px'}} onError={e => {e.target.onerror=null; e.target.src='/logo192.png';}} />
       <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="font-semibold text-gray-800">{booking.operator}</h3>

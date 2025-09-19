@@ -37,14 +37,34 @@ const AuthPage = () => {
         navigate('/homepage');
       }
     } else {
+      // Validation for registration
+      if (!formData.email || !formData.password || !formData.name) {
+        alert('Email, password, and name are required!');
+        return;
+      }
       if (formData.password !== formData.confirmPassword) {
         alert('Passwords do not match!');
         return;
       }
-      const res = await register(formData.email, formData.password, {
-        phone: formData.phone,
-        name: formData.name,
+      if (formData.password.length < 8) {
+        alert('Password must be at least 8 characters long!');
+        return;
+      }
+
+      console.log('Form data being sent:', {
+        ...formData,
+        password: '[HIDDEN]',
+        confirmPassword: '[HIDDEN]'
       });
+
+      const res = await register({
+        email: formData.email.trim(),
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
+        name: formData.name.trim(),
+        phone: formData.phone ? formData.phone.trim() : ''
+      });
+      
       if (res && res.id) {
         navigate('/homepage');
       }
@@ -159,12 +179,22 @@ const AuthPage = () => {
             </>
           )}
 
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+              {error}
+            </div>
+          )}
+
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            disabled={loading}
+            className={`w-full bg-blue-600 text-white py-3 rounded-lg font-medium ${
+              loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+            } transition-colors`}
           >
-            {isLogin ? 'Login' : 'Sign Up'}
+            {loading ? 'Please wait...' : (isLogin ? 'Login' : 'Sign Up')}
           </button>
 
           {/* Links Section */}

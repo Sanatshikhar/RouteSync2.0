@@ -56,6 +56,16 @@ const HomePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+          </div>
+        </div>
+        {/* Main navigation buttons for flow */}
+        <div className="flex flex-col md:flex-row gap-4 mt-8">
+          <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold shadow" onClick={() => navigate('/live-tracking')}>Live Tracking</button>
+          <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold shadow" onClick={() => navigate('/search-bus')}>Search Bus Route</button>
+          <button className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold shadow" onClick={() => navigate('/wishlist')}>Wishlist</button>
+        </div>
+      </div>
+      {/* ...existing code... */}
       {/* Mobile sidebar menu overlay */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 bg-opacity-40 flex justify-end md:hidden">
@@ -69,107 +79,30 @@ const HomePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-
-            {/* Support & engagement */}
-            <div className="mb-2">
-              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'support' ? '' : 'support')}>
-                Support & engagement
-                <span>{openDropdown === 'support' ? '▲' : '▼'}</span>
-              </button>
-              {openDropdown === 'support' && (
-                <div className="pl-4">
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Help & support</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Refer & feedback</button>
-                </div>
-              )}
-            </div>
-
-            {/* Alerts & account */}
-            <div className="mb-2">
-              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'alerts' ? '' : 'alerts')}>
-                Alerts & account
-                <span>{openDropdown === 'alerts' ? '▲' : '▼'}</span>
-              </button>
-              {openDropdown === 'alerts' && (
-                <div className="pl-4">
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">My account</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Emergency SOS</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/notifications'); }}>Notifications</button>
-                </div>
-              )}
-            </div>
-
-            {/* User preference */}
-            <div className="mb-2">
-              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'preference' ? '' : 'preference')}>
-                User preference
-                <span>{openDropdown === 'preference' ? '▲' : '▼'}</span>
-              </button>
-              {openDropdown === 'preference' && (
-                <div className="pl-4">
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Change city</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Settings</button>
-                </div>
-              )}
-            </div>
-
-            {/* Essentials */}
-            <div className="mb-2">
-              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'essentials' ? '' : 'essentials')}>
-                Essentials
-                <span>{openDropdown === 'essentials' ? '▲' : '▼'}</span>
-              </button>
-              {openDropdown === 'essentials' && (
-                <div className="pl-4">
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/lostFound'); }}>Lost & Found</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Booking</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Cancellations</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/wallet'); }}>Wallet</button>
-                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/wishlist'); }}>Wishlist</button>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-8">
-              <button
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                onClick={() => { setMenuOpen(false); handleLogout(); }}
-              >
-                Logout
-              </button>
-            </div>
+            {/* ...existing sidebar code... */}
           </div>
         </div>
       )}
-            {/* Desktop: logout button */}
-            <button
-              className="hidden md:block bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-700 hover:text-white transition-colors"
-              onClick={handleLogout}
-              aria-label="Logout"
-            >
-              Logout
-            </button>
-      {/* Removed sidebar menu with only logout button as requested */}
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <div 
-          className="relative mb-4 cursor-pointer"
-          onClick={() => navigate('/search-bus')}
-        >
-          <input
-            type="text"
-            placeholder="Search your bus routes"
-            className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white cursor-pointer"
-            readOnly
-          />
-          <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
+      {/* Desktop: logout button */}
+      <button
+        className="hidden md:block bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-700 hover:text-white transition-colors"
+        onClick={handleLogout}
+        aria-label="Logout"
+      >
+        Logout
+      </button>
+      {/* Search Bar */}
+      <div className="relative mb-4 cursor-pointer" onClick={() => navigate('/search-bus')}>
+        <input
+          type="text"
+          placeholder="Search your bus routes"
+          className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white cursor-pointer"
+          readOnly
+        />
+        <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
       </div>
-
       {/* Main Content */}
       <div className="bg-gray-100 rounded-t-3xl p-4">
         {/* Quick Actions */}
@@ -199,7 +132,6 @@ const HomePage = () => {
             <span className="text-sm">tour</span>
           </div>
         </div>
-
         {/* Nearby Stops */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Nearby Stops</h2>
@@ -214,7 +146,6 @@ const HomePage = () => {
             </div>
           </div>
         </div>
-
         {/* Offers and Coupons */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Offers and Coupons</h2>
@@ -238,7 +169,6 @@ const HomePage = () => {
             </div>
           </div>
         </div>
-
         {/* Free space for bottom maps and easy scroll */}
         <div className="h-24 md:h-32 lg:h-40"></div>
         {/* Bottom Navigation */}
