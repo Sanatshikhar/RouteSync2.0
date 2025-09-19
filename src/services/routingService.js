@@ -408,11 +408,13 @@ class RoutingService {
       }
       
       // For reasonable distances, use smart calculation
-      let roadDistanceMultiplier = 1.3; // Roads are typically 30% longer than straight line
+      let roadDistanceMultiplier = 1.4; // Roads are typically 40% longer than straight line
       
-      // Adjust multiplier based on distance
-      if (distance < 2) roadDistanceMultiplier = 1.5; // City routes with more turns
-      else if (distance > 15) roadDistanceMultiplier = 1.2; // Highway routes are more direct
+      // Adjust multiplier based on distance and terrain
+      if (distance < 2) roadDistanceMultiplier = 1.6; // City routes with more turns
+      else if (distance < 5) roadDistanceMultiplier = 1.5; // Suburban routes
+      else if (distance > 20) roadDistanceMultiplier = 1.25; // Highway routes are more direct
+      else if (distance > 50) roadDistanceMultiplier = 1.2; // Long highway routes
       
       const roadDistance = distance * roadDistanceMultiplier * 1000; // Convert to meters
       
@@ -466,7 +468,12 @@ class RoutingService {
   // Generate realistic route coordinates with curves
   generateRealisticRouteCoordinates(start, end) {
     const coordinates = [];
-    const steps = 8; // Number of intermediate points
+    const distance = this.calculateDistance(start.lat, start.lng, end.lat, end.lng);
+    const steps = Math.max(20, Math.min(50, Math.floor(distance * 2))); // More points for longer routes
+    
+    // Calculate bearing for perpendicular curves
+    const bearing = Math.atan2(end.lng - start.lng, end.lat - start.lat);
+    const perpBearing = bearing + Math.PI / 2;
     
     for (let i = 0; i <= steps; i++) {
       const ratio = i / steps;
@@ -475,12 +482,20 @@ class RoutingService {
       let lat = start.lat + (end.lat - start.lat) * ratio;
       let lng = start.lng + (end.lng - start.lng) * ratio;
       
-      // Add some realistic curve/deviation to simulate road paths
+      // Add realistic road curves that follow typical road patterns
       if (i > 0 && i < steps) {
-        const deviation = 0.002; // Small deviation to simulate road curves
-        const curveOffset = Math.sin(ratio * Math.PI) * deviation;
-        lat += curveOffset * (Math.random() - 0.5);
-        lng += curveOffset * (Math.random() - 0.5);
+        // Create S-curves and gentle bends typical of roads
+        const curveIntensity = Math.min(distance / 50, 0.01); // Scale with distance
+        const mainCurve = Math.sin(ratio * Math.PI * 3) * curveIntensity * Math.sin(ratio * Math.PI);
+        const microVariation = (Math.sin(ratio * Math.PI * 20) * 0.0005) * Math.random();
+        
+        // Apply curves perpendicular to the main direction
+        lat += Math.cos(perpBearing) * (mainCurve + microVariation);
+        lng += Math.sin(perpBearing) * (mainCurve + microVariation);
+        
+        // Add small random variations to simulate road imperfections
+        lat += (Math.random() - 0.5) * 0.0002;
+        lng += (Math.random() - 0.5) * 0.0002;
       }
       
       coordinates.push([lat, lng]);
@@ -527,22 +542,34 @@ class RoutingService {
         throw new Error('Invalid coordinates provided');
       }
       
-      // Try online routing with OpenRouteService
+      // Try online routing with multiple services
       if (this.isOnline) {
         try {
+          // First try OpenRouteService (if API key available)
           const onlineRoute = await this.getOnlineRoute(normalizedStart, normalizedEnd);
           if (onlineRoute) {
             console.log('✅ Using OpenRouteService (accurate routing)');
             this.updateRouteSource('openrouteservice');
             return { ...onlineRoute, source: 'openrouteservice' };
           }
-        } catch (onlineError) {
-          console.log('❌ OpenRouteService failed, using smart fallback:', onlineError.message);
+        } catch (openRouteError) {
+          console.log('❌ OpenRouteService failed, trying OSRM:', openRouteError.message);
           
-          // Use smart fallback with realistic data
-          const fallbackRoute = this.generateSmartFallbackRoute(normalizedStart, normalizedEnd);
-          this.updateRouteSource('smart_fallback');
-          return { ...fallbackRoute, source: 'smart_fallback' };
+          try {
+            const osrmRoute = await this.getOSRMRoute(normalizedStart, normalizedEnd);
+            if (osrmRoute) {
+              console.log('✅ Using OSRM (free road routing)');
+              this.updateRouteSource('osrm');
+              return { ...osrmRoute, source: 'osrm' };
+            }
+          } catch (osrmError) {
+            console.log('❌ All online services failed, using smart fallback:', osrmError.message);
+            
+            // Use smart fallback with realistic data
+            const fallbackRoute = this.generateSmartFallbackRoute(normalizedStart, normalizedEnd);
+            this.updateRouteSource('smart_fallback');
+            return { ...fallbackRoute, source: 'smart_fallback' };
+          }
         }
       } else {
         console.log('📱 Offline mode, using smart fallback');
@@ -586,6 +613,41 @@ class RoutingService {
     
     console.error('Invalid coordinate format:', coords);
     return null;
+  }
+
+  // Get route from OSRM (free, no API key required)
+  async getOSRMRoute(start, end) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
+    try {
+      // Use public OSRM server
+      const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
+      
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'RouteSync2.0-Odisha'
+        }
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`OSRM HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.routes || data.routes.length === 0) {
+        throw new Error('No route found from OSRM');
+      }
+
+      return this.processOSRMData(data);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
   }
 
   // Try to get route from online services (OpenRouteService only)
@@ -650,30 +712,30 @@ class RoutingService {
     return this.processOpenRouteServiceData(data);
   }
 
-  // Process OpenRouteService data
-  processOpenRouteServiceData(data) {
-    const feature = data.features[0];
-    const coordinates = feature.geometry.coordinates.map(coord => [coord[1], coord[0]]); // Convert to [lat, lng]
-    
-    return {
-      coordinates: coordinates,
-      distance: feature.properties.segments[0].distance, // in meters
-      duration: feature.properties.segments[0].duration, // in seconds
-      instructions: feature.properties.segments[0].steps || [],
-      source: 'openrouteservice'
-    };
-  }
+
 
   // Process OSRM data
   processOSRMData(data) {
     const route = data.routes[0];
     const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]); // Convert to [lat, lng]
     
+    // Process steps for instructions
+    const instructions = [];
+    if (route.legs && route.legs[0] && route.legs[0].steps) {
+      route.legs[0].steps.forEach(step => {
+        instructions.push({
+          instruction: step.maneuver?.instruction || 'Continue',
+          distance: step.distance || 0,
+          duration: step.duration || 0
+        });
+      });
+    }
+    
     return {
       coordinates,
       distance: route.distance, // in meters
       duration: route.duration, // in seconds
-      instructions: route.legs[0]?.steps || [],
+      instructions: instructions,
       bounds: this.calculateBounds(coordinates),
     };
   }
@@ -952,7 +1014,7 @@ class RoutingService {
     return nearestCity;
   }
 
-  // Process OpenRouteService data
+  // Process OpenRouteService data (updated)
   processOpenRouteServiceData(data) {
     if (!data.features || data.features.length === 0) {
       throw new Error('No route found');
@@ -963,8 +1025,8 @@ class RoutingService {
     
     return {
       coordinates,
-      distance: route.properties.summary.distance, // in meters
-      duration: route.properties.summary.duration, // in seconds
+      distance: route.properties.segments[0]?.distance || route.properties.summary?.distance, // in meters
+      duration: route.properties.segments[0]?.duration || route.properties.summary?.duration, // in seconds
       instructions: route.properties.segments[0]?.steps || [],
       bounds: this.calculateBounds(coordinates),
     };

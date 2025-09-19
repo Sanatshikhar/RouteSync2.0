@@ -11,6 +11,7 @@ const RoutePlannerPage = () => {
   const [startLocation, setStartLocation] = useState(null);
   const [endLocation, setEndLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState([20.2961, 85.8245]); // Default to Bhubaneswar
+  const [routeBounds, setRouteBounds] = useState(null);
 
   // Handle route calculation
   const handleRouteCalculated = (route, start, end) => {
@@ -19,10 +20,33 @@ const RoutePlannerPage = () => {
     setStartLocation(start);
     setEndLocation(end);
     
-    // Update map center to show the route
-    if (start && start.lat && start.lng) {
+    // Auto-fit map to show entire route with proper bounds
+    if (route && route.coordinates && route.coordinates.length > 1) {
+      const bounds = route.bounds || calculateRouteBounds(route.coordinates);
+      setMapCenter(null); // Clear center to let bounds take precedence
+      setRouteBounds(bounds);
+    } else if (start && start.lat && start.lng) {
       setMapCenter([start.lat, start.lng]);
     }
+  };
+  
+  // Calculate route bounds for auto-zoom
+  const calculateRouteBounds = (coordinates) => {
+    if (!coordinates || coordinates.length === 0) return null;
+    
+    let minLat = coordinates[0][0];
+    let maxLat = coordinates[0][0];
+    let minLng = coordinates[0][1];
+    let maxLng = coordinates[0][1];
+    
+    coordinates.forEach(([lat, lng]) => {
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+    });
+    
+    return [[minLat, minLng], [maxLat, maxLng]];
   };
 
   // Handle location selection
@@ -155,12 +179,13 @@ const RoutePlannerPage = () => {
               <div className="relative">
                 <Map
                   center={mapCenter}
-                  zoom={13}
+                  zoom={routeBounds ? 10 : 13}
                   height={window.innerWidth < 1280 ? 300 : 450}
                   userLocation={userLocation}
                   route={routeData?.coordinates || []}
                   startLocation={startLocation}
                   endLocation={endLocation}
+                  routeBounds={routeBounds}
                   className="w-full rounded-lg border"
                 />
                 
@@ -221,11 +246,12 @@ const RoutePlannerPage = () => {
                       </div>
                     </div>
                     <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      routeData.source === 'openrouteservice' 
+                      routeData.source === 'osrm' || routeData.source === 'openrouteservice'
                         ? 'bg-green-100 text-green-800' 
                         : 'bg-orange-100 text-orange-800'
                     }`}>
-                      {routeData.source === 'openrouteservice' ? '🌐 Live' : '📱 Offline'}
+                      {routeData.source === 'osrm' ? '🛣️ OSRM' :
+                       routeData.source === 'openrouteservice' ? '🌐 OpenRoute' : '📱 Offline'}
                     </div>
                   </div>
                 </div>

@@ -494,18 +494,32 @@ const SearchBus = () => {
                       )}
                     </div>
                     
-                    <button 
-                      onClick={() => navigate('/bus-status', { 
-                        state: { 
-                          route: route,
-                          from: from,
-                          to: to
-                        }
-                      })}
-                      className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      Track This Route
-                    </button>
+                    <div className="mt-3 flex gap-2">
+                      <button 
+                        onClick={() => navigate('/bus-status', { 
+                          state: { 
+                            route: route,
+                            from: from,
+                            to: to
+                          }
+                        })}
+                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Track Bus
+                      </button>
+                      <button 
+                        onClick={() => navigate('/live-tracking', { 
+                          state: { 
+                            from: from,
+                            to: to,
+                            route: route
+                          }
+                        })}
+                        className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                      >
+                        View Route
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
