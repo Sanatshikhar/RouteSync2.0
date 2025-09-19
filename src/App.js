@@ -17,6 +17,8 @@ import Settings from './components/pages/settings';
 import LostFoundPage from './components/pages/lostFound';
 import WishlistPage from './components/pages/wishlist';
 
+
+
 function App() {
   return (
     <Router>
@@ -39,6 +41,9 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/lostFound" element={<LostFoundPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
+
+          <Route path="/bus-status-mobile" element={<LiveTracking />} />
+          <Route path="/bus-status" element={<LiveTracking />} />
         </Routes>
       </div>
     </Router>

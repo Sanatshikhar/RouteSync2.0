@@ -1,18 +1,23 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBuses } from '../../hooks/useBuses';
-import pb from '../../services/pocketbase';
+import useGeolocation from '../../hooks/useGeolocation';
+import moBusService from '../../services/moBusService';
 
 const SearchBus = () => {
   const navigate = useNavigate();
   const location = useLocation(); // Add this to access passed state
-  const { buses, loading, error, searchBuses } = useBuses();
+  const { buses, searchBuses } = useBuses();
+  const { location: userLocation } = useGeolocation();
   const [tripType, setTripType] = useState("oneway");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [date, setDate] = useState(new Date());
   const [recentSearches, setRecentSearches] = useState([]);
-  const [availableRoutes, setAvailableRoutes] = useState([]);
+  const [foundRoutes, setFoundRoutes] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [nearbyBuses, setNearbyBuses] = useState([]);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
   useEffect(() => {
     // Handle location passed from HomePage
@@ -21,28 +26,6 @@ const SearchBus = () => {
       setTo(locationState.destination);
     }
 
-    // Load available routes for autocomplete
-    const loadRoutes = async () => {
-      try {
-        const routes = await pb.collection('routes').getFullList();
-        const uniqueLocations = new Set();
-        routes.forEach(route => {
-          uniqueLocations.add(route.start_point);
-          uniqueLocations.add(route.end_point);
-        });
-        setAvailableRoutes(Array.from(uniqueLocations));
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          console.error('Request was aborted.');
-        } else if (err.code === 404) {
-          console.error('Routes not found.');
-        } else {
-          console.error('Error loading routes:', err);
-        }
-      }
-    };
-    loadRoutes();
-
     // Load recent searches from local storage
     const savedSearches = localStorage.getItem('recentSearches');
     if (savedSearches) {
@@ -50,9 +33,75 @@ const SearchBus = () => {
     }
   }, [location.state]);
 
+  // Auto-fetch user location and nearby buses
+  useEffect(() => {
+    if (userLocation) {
+      setIsLoadingLocation(false);
+      // Find nearest bus stop to user's location
+      const allStops = moBusService.getAllStops();
+      const nearestStop = allStops
+        .map(stop => ({
+          ...stop,
+          distance: moBusService.calculateDistance(
+            userLocation.lat, userLocation.lng,
+            stop.coordinates.lat, stop.coordinates.lng
+          )
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      if (nearestStop) {
+        setFrom(nearestStop.name);
+        // Auto-fetch buses in this zone
+        fetchBusesInZone(nearestStop);
+      }
+    }
+  }, [userLocation]);
+
+  // Fetch buses in the user's zone
+  const fetchBusesInZone = (nearestStop) => {
+    try {
+      // Get all routes that pass through the nearest stop
+      const routesInZone = moBusService.getRoutesByStop(nearestStop.name);
+      
+      // Get nearby stops within 5km radius
+      const allStops = moBusService.getAllStops();
+      const nearbyStops = allStops
+        .map(stop => ({
+          ...stop,
+          distance: moBusService.calculateDistance(
+            nearestStop.coordinates.lat, nearestStop.coordinates.lng,
+            stop.coordinates.lat, stop.coordinates.lng
+          )
+        }))
+        .filter(stop => stop.distance <= 5) // Within 5km
+        .sort((a, b) => a.distance - b.distance);
+
+      // Create a comprehensive list of available routes in the zone
+      const zoneBuses = [];
+      nearbyStops.forEach(stop => {
+        const stopRoutes = moBusService.getRoutesByStop(stop.name);
+        stopRoutes.forEach(route => {
+          if (!zoneBuses.find(bus => bus.route_id === route.route_id)) {
+            zoneBuses.push({
+              ...route,
+              nearestStop: stop.name,
+              distanceFromUser: stop.distance,
+              estimatedTime: Math.round(stop.distance * 3), // 3 minutes per km
+              fare: Math.max(5, Math.round(stop.distance * 2)) // ₹2 per km, minimum ₹5
+            });
+          }
+        });
+      });
+
+      setNearbyBuses(zoneBuses.slice(0, 10)); // Show top 10 routes
+    } catch (error) {
+      console.error('Error fetching buses in zone:', error);
+    }
+  };
+
   const handleSearch = async () => {
     if (!from || !to) {
-      alert('Please select both source and destination');
+      alert('Please select source');
       return;
     }
 
@@ -111,12 +160,15 @@ const SearchBus = () => {
     const value = e.target.value;
     setFrom(value);
     if (value.length > 0) {
-      const matches = availableRoutes.filter(route => 
-        route.toLowerCase().includes(value.toLowerCase())
-      );
-      setFromSuggestions(matches);
+      const matches = moBusService.searchStops(value);
+      setFromSuggestions(matches.map(stop => stop.name));
     } else {
       setFromSuggestions([]);
+    }
+    
+    // Auto-fetch routes if both from and to are selected
+    if (value && to) {
+      autoFetchRoutes(value, to);
     }
   };
 
@@ -124,12 +176,32 @@ const SearchBus = () => {
     const value = e.target.value;
     setTo(value);
     if (value.length > 0) {
-      const matches = availableRoutes.filter(route => 
-        route.toLowerCase().includes(value.toLowerCase())
-      );
-      setToSuggestions(matches);
+      const matches = moBusService.searchStops(value);
+      setToSuggestions(matches.map(stop => stop.name));
     } else {
       setToSuggestions([]);
+    }
+    
+    // Auto-fetch routes if both from and to are selected
+    if (from && value) {
+      autoFetchRoutes(from, value);
+    }
+  };
+
+  // Auto-fetch routes when both locations are entered
+  const autoFetchRoutes = async (fromLocation, toLocation) => {
+    setIsSearching(true);
+    try {
+      const routes = moBusService.findRoutesBetweenStops(fromLocation, toLocation);
+      setFoundRoutes(routes);
+      
+      if (routes.length > 0) {
+        console.log(`Found ${routes.length} routes from ${fromLocation} to ${toLocation}`);
+      }
+    } catch (error) {
+      console.error('Error auto-fetching routes:', error);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -272,6 +344,171 @@ const SearchBus = () => {
         >
           Search Buses
         </button>
+
+        {/* Location Status */}
+        {isLoadingLocation ? (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
+              <span className="font-semibold text-orange-800">Getting your location...</span>
+            </div>
+            <div className="text-sm text-orange-700 mt-1">
+              Please allow location access to see nearby buses
+            </div>
+          </div>
+        ) : userLocation ? (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="font-semibold text-green-800">Location Found!</span>
+            </div>
+            <div className="text-sm text-green-700">
+              Showing buses near your location
+            </div>
+          </div>
+        ) : null}
+
+        {/* Nearby Buses in Your Zone */}
+        {nearbyBuses.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm mb-6">
+            <div className="p-4 border-b">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                Buses in Your Zone
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">Routes available near your location</p>
+            </div>
+            
+            <div className="divide-y">
+              {nearbyBuses.map((bus, index) => (
+                <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: bus.color }}
+                      ></div>
+                      <span className="font-semibold text-gray-800">Route {bus.route_id}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-green-600">₹{bus.fare}</div>
+                      <div className="text-xs text-gray-500">{bus.estimatedTime} mins</div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600 mb-2">
+                    Nearest stop: {bus.nearestStop} • {bus.distanceFromUser.toFixed(1)} km away
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {bus.stops.slice(0, 3).map((stop, stopIndex) => (
+                      <span key={stopIndex} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {stop}
+                      </span>
+                    ))}
+                    {bus.stops.length > 3 && (
+                      <span className="text-xs text-gray-500">
+                        +{bus.stops.length - 3} more stops
+                      </span>
+                    )}
+                  </div>
+                  
+                  <button 
+                    onClick={() => navigate('/bus-status', { 
+                      state: { 
+                        route: bus,
+                        from: bus.nearestStop,
+                        to: "Select destination"
+                      }
+                    })}
+                    className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                  >
+                    Track This Bus
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Auto-fetched Routes */}
+        {(isSearching || foundRoutes.length > 0) && (
+          <div className="bg-white rounded-lg shadow-sm mb-6">
+            <div className="p-4 border-b">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10z"/>
+                </svg>
+                Available Routes
+                {isSearching && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 ml-2"></div>
+                )}
+              </h3>
+            </div>
+            
+            {foundRoutes.length > 0 ? (
+              <div className="divide-y">
+                {foundRoutes.map((route, index) => (
+                  <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: route.color }}
+                        ></div>
+                        <span className="font-semibold text-gray-800">Route {route.route_id}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-green-600">₹{route.fare}</div>
+                        <div className="text-xs text-gray-500">{route.estimatedTime} mins</div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-sm text-gray-600 mb-2">
+                      {route.stops.length} stops • {route.distance} stops apart
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-1">
+                      {route.stops.slice(0, 3).map((stop, stopIndex) => (
+                        <span key={stopIndex} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {stop}
+                        </span>
+                      ))}
+                      {route.stops.length > 3 && (
+                        <span className="text-xs text-gray-500">
+                          +{route.stops.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                    
+                    <button 
+                      onClick={() => navigate('/bus-status', { 
+                        state: { 
+                          route: route,
+                          from: from,
+                          to: to
+                        }
+                      })}
+                      className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Track This Route
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : !isSearching && from && to && (
+              <div className="p-4 text-center text-gray-500">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p>No direct routes found between these stops</p>
+                <p className="text-xs mt-1">Try nearby stops or different locations</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Recent Search / Upcoming */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">

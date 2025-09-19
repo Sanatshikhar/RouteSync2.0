@@ -82,7 +82,7 @@ const TicketDetails = () => (
       </div>
     </div>
     <div className="w-full max-w-md flex flex-col gap-3 mb-4">
-      <button className="w-full py-3 rounded-lg bg-white border text-gray-700 font-semibold" onClick={() => window.location.href = '/livet_track'}>Check bus status</button>
+      <button className="w-full py-3 rounded-lg bg-white border text-gray-700 font-semibold" onClick={() => window.location.href = '/bus-status'}>Check bus status</button>
       <button className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold">Download ticket</button>
     </div>
   </div>
