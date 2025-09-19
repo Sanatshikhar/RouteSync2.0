@@ -16,16 +16,6 @@ import Settings from './components/pages/settings';
 import LostFoundPage from './components/pages/lostFound';
 import WishlistPage from './components/pages/wishlist';
 
-// Placeholder components for missing pages
-const SelectLocation = () => <div>Select Location Page</div>;
-const BusStatusInfo = () => <div>Bus Status Info Page</div>;
-const ConfirmPage = () => <div>Confirm Page</div>;
-const DownloadTicket = () => <div>Download Ticket Page</div>;
-const PayFare = () => <div>Pay Fare Page</div>;
-const PaymentMethod = () => <div>Payment Method Page</div>;
-const TakeRide = () => <div>Take a Ride Page</div>;
-const SaveAlarm = () => <div>Save Alarm Page</div>;
-
 function App() {
   return (
     <Router>
@@ -34,18 +24,9 @@ function App() {
           <Route path="/" element={<Navigate to="/auth" />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/homepage" element={<HomePage />} />
-          <Route path="/live-tracking" element={<LiveTracking />} />
           <Route path="/search-bus" element={<SearchBus />} />
-          <Route path="/wishlist" element={<WishlistPage />} />
-          <Route path="/select-location" element={<SelectLocation />} />
           <Route path="/list-bus" element={<ListBus />} />
-          <Route path="/bus-status-info" element={<BusStatusInfo />} />
-          <Route path="/confirm" element={<ConfirmPage />} />
-          <Route path="/download-ticket" element={<DownloadTicket />} />
-          <Route path="/pay-fare" element={<PayFare />} />
-          <Route path="/payment-method" element={<PaymentMethod />} />
-          <Route path="/take-ride" element={<TakeRide />} />
-          <Route path="/save-alarm" element={<SaveAlarm />} />
+          <Route path="/live-tracking" element={<LiveTracking />} />
           <Route path="/boarding" element={<Boarding />} />
           <Route path="/payment" element={<PaymentSystem />} />
           <Route path="/ticket" element={<Ticket />} />
@@ -55,6 +36,7 @@ function App() {
           <Route path="/booking-history" element={<BookingHistory />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/lostFound" element={<LostFoundPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
         </Routes>
       </div>
     </Router>
