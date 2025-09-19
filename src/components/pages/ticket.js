@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const TicketConfirmation = ({ onViewTicket }) => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-[#F6F8FB] px-4">
-    <div className="flex-1 flex flex-col items-center justify-center w-full">
-      <div className="bg-white rounded-full p-8 mb-6 shadow">
-        <svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="40" fill="#E6F9EC"/><path d="M25 41.5L36.5 53L56 33.5" stroke="#22C55E" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+const TicketConfirmation = ({ onViewTicket }) => {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F6F8FB] px-4">
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        <div className="bg-white rounded-full p-8 mb-6 shadow">
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none"><circle cx="40" cy="40" r="40" fill="#E6F9EC"/><path d="M25 41.5L36.5 53L56 33.5" stroke="#22C55E" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <div className="text-center mb-8">
+          <div className="text-lg font-semibold mb-2">Congratulation, your bus ticket is confirmed, download your ticket now.</div>
+        </div>
       </div>
-      <div className="text-center mb-8">
-        <div className="text-lg font-semibold mb-2">Congratulation, your bus ticket is confirmed, download your ticket now.</div>
+      <div className="w-full max-w-md flex flex-col gap-3 mb-4">
+        <button className="w-full py-3 rounded-lg bg-white border text-gray-700 font-semibold" onClick={() => navigate(-1)}>Back</button>
+        <button className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold" onClick={onViewTicket}>View Ticket</button>
       </div>
     </div>
-    <div className="w-full max-w-md flex flex-col gap-3 mb-4">
-      <button className="w-full py-3 rounded-lg bg-white border text-gray-700 font-semibold" onClick={() => window.location.href = '/homepage'}>Back to home</button>
-      <button className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold" onClick={onViewTicket}>View Ticket</button>
-    </div>
-  </div>
-);
+  );
+};
 
 const TicketDetails = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-[#F6F8FB] px-4">

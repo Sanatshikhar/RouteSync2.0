@@ -1,20 +1,22 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState('');
 
-  // Check if user is logged in
+  // Redirect if not logged in
   useEffect(() => {
-    const isLoggedIn = localStorage.getItem('isLoggedIn');
-    if (!isLoggedIn) {
+    if (!user) {
       navigate('/auth');
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userEmail');
+    logout();
     navigate('/auth');
   };
 
@@ -24,14 +26,16 @@ const HomePage = () => {
       <div className="bg-blue-600 text-white p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center space-x-2">
-            <img 
-              src={localStorage.getItem('userEmail') === 'test@test.com' ? 'https://ui-avatars.com/api/?name=Test+User' : ''}
-              alt="Profile"
-              className="w-8 h-8 rounded-full"
-            />
+            {user && (
+              <img
+                src={user.avatar ? user.avatar : `https://picsum.photos/seed/${user.name}/200/300`}
+                alt="Profile"
+                className="w-12 h-12 rounded-full"
+              />
+            )}
             <div>
               <p className="text-sm">Good morning</p>
-              <p className="font-semibold">Jayadevan</p>
+              <p className="font-semibold">{user?.name || 'User'}</p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
@@ -42,11 +46,110 @@ const HomePage = () => {
               <span>Kochi</span>
             </div>
             <span>29°C</span>
-            <button onClick={handleLogout}>
+            {/* Mobile: menu button */}
+            <button
+              className="block md:hidden"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+            >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+      {/* Mobile sidebar menu overlay */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 bg-opacity-40 flex justify-end md:hidden">
+          <div className="bg-white w-80 max-w-xs h-full shadow-lg p-6 flex flex-col overflow-y-auto">
+            <button
+              className="self-end mb-6 text-gray-500 hover:text-blue-600"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Close menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Support & engagement */}
+            <div className="mb-2">
+              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'support' ? '' : 'support')}>
+                Support & engagement
+                <span>{openDropdown === 'support' ? '▲' : '▼'}</span>
+              </button>
+              {openDropdown === 'support' && (
+                <div className="pl-4">
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Help & support</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Refer & feedback</button>
+                </div>
+              )}
+            </div>
+
+            {/* Alerts & account */}
+            <div className="mb-2">
+              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'alerts' ? '' : 'alerts')}>
+                Alerts & account
+                <span>{openDropdown === 'alerts' ? '▲' : '▼'}</span>
+              </button>
+              {openDropdown === 'alerts' && (
+                <div className="pl-4">
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">My account</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Emergency SOS</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/notifications'); }}>Notifications</button>
+                </div>
+              )}
+            </div>
+
+            {/* User preference */}
+            <div className="mb-2">
+              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'preference' ? '' : 'preference')}>
+                User preference
+                <span>{openDropdown === 'preference' ? '▲' : '▼'}</span>
+              </button>
+              {openDropdown === 'preference' && (
+                <div className="pl-4">
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Change city</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Settings</button>
+                </div>
+              )}
+            </div>
+
+            {/* Essentials */}
+            <div className="mb-2">
+              <button className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600" onClick={() => setOpenDropdown(openDropdown === 'essentials' ? '' : 'essentials')}>
+                Essentials
+                <span>{openDropdown === 'essentials' ? '▲' : '▼'}</span>
+              </button>
+              {openDropdown === 'essentials' && (
+                <div className="pl-4">
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/lostFound'); }}>Lost & Found</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Booking</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">Cancellations</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/wallet'); }}>Wallet</button>
+                  <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600" onClick={() => { setMenuOpen(false); navigate('/wishlist'); }}>Wishlist</button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8">
+              <button
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                onClick={() => { setMenuOpen(false); handleLogout(); }}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+            {/* Desktop: logout button */}
+            <button
+              className="hidden md:block bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-700 hover:text-white transition-colors"
+              onClick={handleLogout}
+              aria-label="Logout"
+            >
+              Logout
+            </button>
+      {/* Removed sidebar menu with only logout button as requested */}
           </div>
         </div>
 
@@ -64,22 +167,6 @@ const HomePage = () => {
           <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-        </div>
-
-        {/* Transport Options */}
-        <div className="flex space-x-4 mb-4">
-          <button 
-            onClick={() => navigate('/list-bus')}
-            className="bg-white text-blue-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors"
-          >
-            Bus
-          </button>
-          <button className="text-white px-4 py-1 rounded-full text-sm font-medium hover:bg-blue-700 transition-colors">
-            Railway station
-          </button>
-          <button className="text-white px-4 py-1 rounded-full text-sm font-medium hover:bg-blue-700 transition-colors">
-            Metro station
-          </button>
         </div>
       </div>
 
@@ -152,6 +239,8 @@ const HomePage = () => {
           </div>
         </div>
 
+        {/* Free space for bottom maps and easy scroll */}
+        <div className="h-24 md:h-32 lg:h-40"></div>
         {/* Bottom Navigation */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
           <div className="flex justify-around">

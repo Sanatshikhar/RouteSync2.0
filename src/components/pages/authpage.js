@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AuthPage = () => {
+
   const navigate = useNavigate();
+  const { login, register, loading, error, user } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
-    mobileNumber: '',
-    fullName: '',
+    phone: '',
+    name: '',
   });
 
   const handleChange = (e) => {
@@ -26,29 +29,25 @@ const AuthPage = () => {
     password: 'test123'
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (isLogin) {
-      // Sample login validation
-      if (formData.email === sampleUser.email && formData.password === sampleUser.password) {
-        // Successful login
-        alert('Login successful!');
-        // Store login state in localStorage (temporary solution)
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userEmail', formData.email);
-        // Navigate to homepage
+      const res = await login(formData.email, formData.password);
+      if (res && res.record) {
         navigate('/homepage');
-      } else {
-        // Failed login
-        alert('Invalid credentials! Use test@test.com / test123 for testing');
       }
     } else {
-      // Handle signup
       if (formData.password !== formData.confirmPassword) {
         alert('Passwords do not match!');
         return;
       }
-      console.log('Signup:', formData);
+      const res = await register(formData.email, formData.password, {
+        phone: formData.phone,
+        name: formData.name,
+      });
+      if (res && res.id) {
+        navigate('/homepage');
+      }
     }
   };
 
@@ -58,8 +57,8 @@ const AuthPage = () => {
       email: '',
       password: '',
       confirmPassword: '',
-      mobileNumber: '',
-      fullName: '',
+      phone: '',
+      name: '',
     });
   };
 
@@ -135,8 +134,8 @@ const AuthPage = () => {
                 <label className="block text-gray-700 text-sm font-medium">Mobile number</label>
                 <input
                   type="tel"
-                  name="mobileNumber"
-                  value={formData.mobileNumber}
+                  name="phone"
+                  value={formData.phone}
                   onChange={handleChange}
                   placeholder="Enter your mobile number"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -149,8 +148,8 @@ const AuthPage = () => {
                 <label className="block text-gray-700 text-sm font-medium">Full Name</label>
                 <input
                   type="text"
-                  name="fullName"
-                  value={formData.fullName}
+                  name="name"
+                  value={formData.name}
                   onChange={handleChange}
                   placeholder="Enter your full name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"

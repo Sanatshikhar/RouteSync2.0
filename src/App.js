@@ -13,6 +13,8 @@ import Wallet from './components/pages/wallet';
 import Profile from './components/pages/profile';
 import BookingHistory from './components/pages/bookingHistory';
 import Settings from './components/pages/settings';
+import LostFoundPage from './components/pages/lostFound';
+import WishlistPage from './components/pages/wishlist';
 
 function App() {
   return (
@@ -33,6 +35,8 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/booking-history" element={<BookingHistory />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/lostFound" element={<LostFoundPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
         </Routes>
       </div>
     </Router>
