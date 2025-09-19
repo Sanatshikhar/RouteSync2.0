@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { getBuses } from '../services/pocketbase';
 
 export function useBuses() {
   const [buses, setBuses] = useState([]);
@@ -10,9 +10,8 @@ export function useBuses() {
     async function fetchBuses() {
       setLoading(true);
       try {
-        // Replace with your actual API endpoint or PocketBase logic
-        const response = await axios.get('/api/buses');
-        setBuses(response.data);
+        const data = await getBuses();
+        setBuses(data);
         setError(null);
       } catch (err) {
         setError(err);

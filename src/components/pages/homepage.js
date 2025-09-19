@@ -243,36 +243,69 @@ const HomePage = () => {
       {/* Main Content */}
       <div className="bg-gray-100 rounded-t-3xl p-4">
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-3 mb-6">
           <div className="text-center">
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
-          <button onClick={() => navigate('/live-tracking')} aria-label="Live Tracking">
-            <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        </div>
-        <span className="text-sm">Live Tracking</span>
+            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+              <button onClick={() => navigate('/bus-status')} aria-label="Bus Status">
+                <svg className="w-6 h-6 mx-auto text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                </svg>
+              </button>
+            </div>
+            <span className="text-xs">Bus Status</span>
           </div>
           <div className="text-center">
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
-          <button onClick={() => navigate('/list-bus')} aria-label="Bus Tracking">
-            <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        </div>
-        <span className="text-sm">Bus Tracking</span>
+            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+              <button onClick={() => navigate('/route-planner')} aria-label="Route Planner">
+                <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 013.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+              </button>
+            </div>
+            <span className="text-xs">Route Plan</span>
           </div>
           <div className="text-center">
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
-          <button onClick={() => navigate('/wallet')} aria-label="Wallet">
-            <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-          </button>
-        </div>
+            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+              <button onClick={() => navigate('/listbus')} aria-label="Find Buses">
+                <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+            </div>
+            <span className="text-xs">Find Buses</span>
+          </div>
+          <div className="text-center">
+            <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+              <button onClick={() => navigate('/wallet')} aria-label="Wallet">
+                <svg className="w-6 h-6 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </button>
+            </div>
         <span className="text-sm">Wallet</span>
+          </div>
+        </div>
+
+        {/* Feature Showcase - Mobile Bus Status */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-4 mb-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold mb-1">Live Bus Tracking</h3>
+              <p className="text-sm opacity-90 mb-3">Track your bus in real-time with our new mobile interface</p>
+              <button 
+                onClick={() => navigate('/bus-status')}
+                className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium text-sm hover:bg-blue-50 transition-colors"
+              >
+                Try Now
+              </button>
+            </div>
+            <div className="ml-4">
+              <div className="w-16 h-16 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
