@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 const AuthPage = () => {
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, register, loading, error, user } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
@@ -31,10 +32,11 @@ const AuthPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const redirectTo = location.state?.from?.pathname || '/homepage';
     if (isLogin) {
       const res = await login(formData.email, formData.password);
       if (res && res.record) {
-        navigate('/homepage');
+        navigate(redirectTo);
       }
     } else {
       // Validation for registration
@@ -66,7 +68,7 @@ const AuthPage = () => {
       });
       
       if (res && res.id) {
-        navigate('/homepage');
+        navigate(redirectTo);
       }
     }
   };

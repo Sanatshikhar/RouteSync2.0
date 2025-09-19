@@ -16,12 +16,7 @@ const HomePage = () => {
   const [loadingNearby, setLoadingNearby] = useState(true); // Loading state for nearby routes
   const [searchValue, setSearchValue] = useState(''); // For location search
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-    }
-  }, [user, navigate]);
+  // No forced redirect for homepage; only protected features require auth
 
   // Fetch 3 nearby routes from PocketBase on mount
   useEffect(() => {
@@ -46,6 +41,10 @@ const HomePage = () => {
 
   // Function to handle search and redirect
   const handleSearchRedirect = () => {
+    if (searchValue.trim().toLowerCase() === 'admin') {
+      navigate('/admin');
+      return;
+    }
     if (searchValue.trim()) {
       navigate('/search-bus', { 
         state: { 

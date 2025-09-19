@@ -17,30 +17,34 @@ import Settings from './components/pages/settings';
 import LostFoundPage from './components/pages/lostFound';
 import WishlistPage from './components/pages/wishlist';
 import AdminDashboard from './components/admin/admin';
+import TransportDashboard from './components/TransportDashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
     <Router>
       <div>
         <Routes>
-          <Route path="/" element={<Navigate to="/auth" />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/homepage" element={<HomePage />} />
           <Route path="/search-bus" element={<SearchBus />} />
           <Route path="/listbus" element={<ListBus />} />
-          <Route path="/live-tracking" element={<LiveTracking />} />
-          <Route path="/boarding" element={<Boarding />} />
-          <Route path="/payment" element={<PaymentSystem />} />
-          <Route path="/ticket" element={<TicketList />} />
-          <Route path="/ticket/:id" element={<Ticket />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/wallet" element={<Wallet />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/booking-history" element={<BookingHistory />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/lostFound" element={<LostFoundPage />} />
-          <Route path="/wishlist" element={<WishlistPage />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          {/* Protected features */}
+          <Route path="/live-tracking" element={<ProtectedRoute><LiveTracking /></ProtectedRoute>} />
+          <Route path="/boarding" element={<ProtectedRoute><Boarding /></ProtectedRoute>} />
+          <Route path="/payment" element={<ProtectedRoute><PaymentSystem /></ProtectedRoute>} />
+          <Route path="/ticket" element={<ProtectedRoute><TicketList /></ProtectedRoute>} />
+          <Route path="/ticket/:id" element={<ProtectedRoute><Ticket /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+          <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/booking-history" element={<ProtectedRoute><BookingHistory /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/lostFound" element={<ProtectedRoute><LostFoundPage /></ProtectedRoute>} />
+          <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/transport" element={<ProtectedRoute><TransportDashboard /></ProtectedRoute>} />
         </Routes>
       </div>
     </Router>
