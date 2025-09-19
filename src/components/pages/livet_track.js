@@ -2,9 +2,10 @@ import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import useGeolocation from "../../hooks/useGeolocation";
 import Map from "../Map";
-import moBusService from "../../services/moBusService";
+import dbService from "../../services/dbService";
 import routingService from "../../services/routingService";
 import pb from "../../services/pocketbase";
+import BottomNav from "../BottomNav";
 
 const LivetTrack = () => {
   const location = useLocation();
@@ -74,28 +75,15 @@ const LivetTrack = () => {
           let fromStopData = null;
           let toStopData = null;
           
-          try {
-            const fromStopResponse = await pb.collection('buses').getFirstListItem(`from_stop ~ "${from}"`);
-            fromStopData = {
-              coordinates: {
-                lat: fromStopResponse.from_lat || 20.2961,
-                lng: fromStopResponse.from_lng || 85.8245
-              }
-            };
-          } catch (e) {
-            console.log('From stop not found in database:', from);
+          const fromCoords = await dbService.getStopCoordinates(from);
+          const toCoords = await dbService.getStopCoordinates(to);
+          
+          if (fromCoords) {
+            fromStopData = { coordinates: fromCoords };
           }
           
-          try {
-            const toStopResponse = await pb.collection('buses').getFirstListItem(`to_stop ~ "${to}"`);
-            toStopData = {
-              coordinates: {
-                lat: toStopResponse.to_lat || 20.2500,
-                lng: toStopResponse.to_lng || 85.8400
-              }
-            };
-          } catch (e) {
-            console.log('To stop not found in database:', to);
+          if (toCoords) {
+            toStopData = { coordinates: toCoords };
           }
           
           if (fromStopData?.coordinates && toStopData?.coordinates) {
@@ -161,16 +149,22 @@ const LivetTrack = () => {
         // Try to get bus stops from database first
         let stops = [];
         try {
-          const stopsResponse = await pb.collection('buses').getFullList();
-          stops = stopsResponse.map(bus => ({
-            name: bus.from_stop,
-            coordinates: {
-              lat: bus.from_lat || 20.2961,
-              lng: bus.from_lng || 85.8245,
-              type: 'bus_stop'
-            },
-            routes: [bus.route_id]
-          }));
+          const routesResponse = await pb.collection('routes').getFullList();
+          const stopSet = new Set();
+          routesResponse.forEach(route => {
+            if (route.start_point) stopSet.add(route.start_point);
+            if (route.end_point) stopSet.add(route.end_point);
+          });
+          
+          stops = [];
+          for (const stopName of Array.from(stopSet)) {
+            const coordinates = await dbService.getStopCoordinates(stopName);
+            stops.push({
+              name: stopName,
+              coordinates,
+              routes: []
+            });
+          }
           console.log(`Loaded ${stops.length} bus stops from database`);
         } catch (dbError) {
           console.log('Database not available, using fallback stops:', dbError.message);
@@ -188,15 +182,24 @@ const LivetTrack = () => {
           try {
             if (passedBus.route_id) {
               const routeResponse = await pb.collection('routes').getFirstListItem(
-                `route_number = "${passedBus.route_id}"`,
-                { expand: 'stops' }
+                `name ~ "${passedBus.route_id}"`
               );
               
+              let routeStops = [];
+              if (typeof routeResponse.stops === 'string') {
+                try {
+                  routeStops = JSON.parse(routeResponse.stops);
+                } catch (e) {
+                  routeStops = routeResponse.stops.split(',').map(s => s.trim());
+                }
+              } else if (Array.isArray(routeResponse.stops)) {
+                routeStops = routeResponse.stops;
+              }
+              
               busRoute = {
-                route_id: routeResponse.route_number || routeResponse.id,
-                color: routeResponse.color || "#3B82F6",
-                stops: Array.isArray(routeResponse.stops) ? routeResponse.stops : 
-                       typeof routeResponse.stops === 'string' ? JSON.parse(routeResponse.stops) : [],
+                route_id: routeResponse.name || routeResponse.id,
+                color: "#3B82F6",
+                stops: routeStops,
                 name: routeResponse.name
               };
               console.log('Found route from database:', busRoute);
@@ -214,8 +217,11 @@ const LivetTrack = () => {
                 stops: passedBus.stops,
               };
             } else {
-              const routes = moBusService.getAllRoutes();
-              busRoute = routes.find((r) => r.route_id === passedBus.route_id) || routes[0];
+              busRoute = {
+                route_id: passedBus.route_id,
+                color: passedBus.route_color || "#3B82F6",
+                stops: passedBus.stops || [from || 'Start', to || 'End'],
+              };
             }
           }
 
@@ -255,24 +261,27 @@ const LivetTrack = () => {
           setCurrentBus(currentBusData);
 
           // Generate realistic timeline based on actual route
-          generateBusTimeline(busRoute, currentBusData.currentStopIndex);
+          await generateBusTimeline(busRoute, currentBusData.currentStopIndex);
         } else {
           // Fallback to demo data if no bus passed
           console.log("No bus data passed, using demo data");
-          const routes = moBusService.getAllRoutes();
-          const randomRoute = routes[Math.floor(Math.random() * routes.length)];
-          setSelectedRoute(randomRoute);
+          const demoRoute = {
+            route_id: 'DEMO-01',
+            color: '#3B82F6',
+            stops: ['Demo Start', 'Demo Middle', 'Demo End']
+          };
+          setSelectedRoute(demoRoute);
 
           const currentBusData = {
             number: `OD-${Math.floor(Math.random() * 9000) + 1000}`,
-            route: `${randomRoute.stops[0]} → ${
-              randomRoute.stops[randomRoute.stops.length - 1]
+            route: `${demoRoute.stops[0]} → ${
+              demoRoute.stops[demoRoute.stops.length - 1]
             }`,
-            routeId: randomRoute.route_id,
-            color: randomRoute.color,
+            routeId: demoRoute.route_id,
+            color: demoRoute.color,
 
             nextStop:
-              randomRoute.stops[Math.floor(randomRoute.stops.length / 3)],
+              demoRoute.stops[Math.floor(demoRoute.stops.length / 3)],
             eta: new Date(
               Date.now() + Math.random() * 20 * 60000
             ).toLocaleTimeString("en-IN", {
@@ -282,11 +291,11 @@ const LivetTrack = () => {
             status: Math.random() > 0.7 ? "Delayed" : "On Time",
             distance: `${Math.floor(Math.random() * 8) + 2} km`,
             fare: Math.floor(Math.random() * 25) + 10,
-            currentStopIndex: Math.floor(randomRoute.stops.length / 3),
+            currentStopIndex: Math.floor(demoRoute.stops.length / 3),
           };
 
           setCurrentBus(currentBusData);
-          generateBusTimeline(randomRoute, currentBusData.currentStopIndex);
+          await generateBusTimeline(demoRoute, currentBusData.currentStopIndex);
         }
       } catch (error) {
         console.error("Error initializing bus data:", error);
@@ -299,8 +308,10 @@ const LivetTrack = () => {
   }, [passedBus, from, to]);
 
   // Generate realistic bus timeline with real stops
-  const generateBusTimeline = (route, currentStopIndex) => {
-    const timeline = route.stops.map((stop, index) => {
+  const generateBusTimeline = async (route, currentStopIndex) => {
+    const timeline = [];
+    for (let index = 0; index < route.stops.length; index++) {
+      const stop = route.stops[index];
       const baseTime = new Date();
       baseTime.setMinutes(baseTime.getMinutes() + index * 3); // 3 minutes per stop
 
@@ -316,12 +327,12 @@ const LivetTrack = () => {
         status = "current";
       }
 
-      const stopCoords = moBusService.getStopDetails(stop).coordinates;
+      const stopCoords = await dbService.getStopCoordinates(stop);
       const distance = stopCoords
         ? `${(index * 1.5 + Math.random() * 2).toFixed(1)} km`
         : `${index * 2} km`;
 
-      return {
+      timeline.push({
         name: stop,
         time: baseTime.toLocaleTimeString("en-IN", {
           hour: "2-digit",
@@ -336,8 +347,8 @@ const LivetTrack = () => {
         distance: distance,
         status: status,
         coordinates: stopCoords,
-      };
-    });
+      });
+    }
 
     setBusStopsTimeline(timeline);
   };
@@ -348,7 +359,7 @@ const LivetTrack = () => {
       const nearby = allBusStops
         .map((stop) => ({
           ...stop,
-          distance: moBusService.calculateDistance(
+          distance: dbService.calculateDistance(
             userLocation.lat,
             userLocation.lng,
             stop.coordinates.lat,
@@ -419,7 +430,7 @@ const LivetTrack = () => {
   };
 
   // Refresh bus data
-  const refreshBusData = () => {
+  const refreshBusData = async () => {
     if (selectedRoute && currentBus) {
       // Simulate bus movement
       const newStopIndex = Math.min(
@@ -435,7 +446,7 @@ const LivetTrack = () => {
         ).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
       };
       setCurrentBus(updatedBus);
-      generateBusTimeline(selectedRoute, newStopIndex);
+      await generateBusTimeline(selectedRoute, newStopIndex);
     }
   };
 
@@ -545,13 +556,90 @@ const LivetTrack = () => {
 
           {/* Connection Status */}
           <div className="text-xs opacity-75">
-            {isOnline ? "🟢 Live Data" : "🔴 Offline Mode"}
+            {/* {isOnline ? "🟢 Live Data" : "🔴 Offline Mode"} */}
           </div>
         </div>
 
         {/* Map/Timeline Content */}
         {tab === "Live status" ? (
           <div className="px-4 -mt-4">
+            {/* Enhanced Bus Status Card */}
+            <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2v0a2 2 0 01-2-2v-1H8V7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-800">{currentBus.number}</h3>
+                    <p className="text-sm text-gray-600">{currentBus.category || "Non-AC"} • Route {currentBus.routeId}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-600">₹{currentBus.fare}</div>
+                  <div className="text-xs text-gray-500">Fare</div>
+                </div>
+              </div>
+
+              {/* Route Progress */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Route Progress</span>
+                  <span className="text-xs text-gray-500">{currentBus.nextStop}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{width: '45%'}}></div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>Started</span>
+                  <span>Current: {currentBus.nextStop}</span>
+                  <span>Destination</span>
+                </div>
+              </div>
+
+              {/* Key Stats */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-blue-600">{currentBus.eta}</div>
+                  <div className="text-xs text-gray-600">ETA</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-blue-600">{currentBus.distance}</div>
+                  <div className="text-xs text-gray-600">Distance</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-lg font-bold ${
+                    currentBus.status === "On Time" ? "text-green-600" : "text-red-600"
+                  }`}>
+                    {currentBus.status === "On Time" ? "On Time" : "Delayed"}
+                  </div>
+                  <div className="text-xs text-gray-600">Status</div>
+                </div>
+              </div>
+
+              {/* Live Updates */}
+              <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-3 border border-blue-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm font-medium text-blue-800">Live Updates</span>
+                  <div className="ml-auto text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                    {isOnline ? "Online" : "Offline"}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-700 mb-1">
+                  📍 Currently at: <span className="font-medium">{currentBus.nextStop}</span>
+                </div>
+                <div className="text-sm text-gray-700 mb-2">
+                  🚌 Next stop in approximately 3-5 minutes
+                </div>
+                <div className="text-xs text-gray-600">
+                  Last updated: {new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'})}
+                </div>
+              </div>
+            </div>
+
             {/* Route Info Card (if route data available) */}
             {routeData && startLocation && endLocation && (
               <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
@@ -560,7 +648,7 @@ const LivetTrack = () => {
                     <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 013.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
-                    Route Overview
+                    Route Map
                   </h3>
                   <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                     routeData.source === 'osrm' || routeData.source === 'openrouteservice'
@@ -574,13 +662,13 @@ const LivetTrack = () => {
                 
                 <div className="grid grid-cols-2 gap-4 mb-3">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
+                    <div className="text-xl font-bold text-blue-600">
                       {routeData.duration ? Math.round(routeData.duration / 60) : 'N/A'} min
                     </div>
                     <div className="text-sm text-gray-600">Duration</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
+                    <div className="text-xl font-bold text-blue-600">
                       {routeData.distance ? (routeData.distance / 1000).toFixed(1) : 'N/A'} km
                     </div>
                     <div className="text-sm text-gray-600">Distance</div>
@@ -588,7 +676,7 @@ const LivetTrack = () => {
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Estimated Bus Fare:</span>
+                  <span className="text-gray-600">Estimated Fare:</span>
                   <span className="font-semibold text-green-600">
                     ₹{routeData.distance ? routingService.estimateIndianBusFare(routeData.distance) : 'N/A'}
                   </span>
@@ -598,7 +686,14 @@ const LivetTrack = () => {
             
             {/* Map Section */}
             <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-              <div className="relative h-64 bg-gray-100 rounded-xl overflow-hidden mb-4">
+              <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Live Location
+              </h3>
+              <div className="relative h-64 bg-gray-100 rounded-xl overflow-hidden">
                 <Map
                   center={routeBounds ? null : mapCenter}
                   zoom={routeBounds ? 10 : 14}
@@ -620,153 +715,83 @@ const LivetTrack = () => {
                   className="w-full rounded-xl"
                 />
               </div>
-
-              {/* Bus Info Card */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="font-semibold text-gray-800">
-                      {currentBus.number}
-                    </span>
-                    {currentBus.departure_time && (
-                      <div className="text-xs text-gray-500">
-                        Departed: {currentBus.departure_time}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button className="text-gray-400">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"
-                        />
-                      </svg>
-                    </button>
-                    <button className="text-red-400">
-                      <svg
-                        className="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="text-sm text-gray-600">
-                    {currentBus.category || "Ordinary"}
-                  </div>
-                  {currentBus.routeId && (
-                    <>
-                      <span className="text-gray-400">•</span>
-                      <div className="flex items-center gap-1">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{
-                            backgroundColor: currentBus.color || "#3B82F6",
-                          }}
-                        ></div>
-                        <span className="text-sm text-gray-600">
-                          Route {currentBus.routeId}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-
-
-                {/* Status Info */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="text-center">
-                    <div className="text-gray-500">Arrives at</div>
-                    <div className="font-semibold">{currentBus.eta}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-gray-500">Status</div>
-                    <div
-                      className={`font-semibold ${
-                        currentBus.status === "On Time"
-                          ? "text-green-500"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {currentBus.status}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-gray-500">Next distance</div>
-                    <div className="font-semibold">{currentBus.distance}</div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         ) : (
           <div className="px-4 -mt-4">
-            {/* Bus Timeline */}
+            {/* Enhanced Bus Timeline */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Bus Timeline
+                </h3>
+                <div className="text-xs text-gray-500">
+                  {busStopsTimeline.filter(s => s.status === 'completed').length} of {busStopsTimeline.length} stops
+                </div>
+              </div>
+              
               <div className="space-y-4">
                 {busStopsTimeline.map((stop, index) => (
-                  <div key={index} className="flex items-center gap-4">
+                  <div key={index} className="flex items-start gap-4">
                     <div className="flex flex-col items-center">
                       <div
-                        className={`w-3 h-3 rounded-full ${getStatusColor(
-                          stop.status
-                        )} ${stop.status === "current" ? "animate-pulse" : ""}`}
-                      ></div>
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          stop.status === "completed" ? "bg-blue-600 border-blue-600" :
+                          stop.status === "current" ? "bg-blue-100 border-blue-600 animate-pulse" :
+                          "bg-gray-100 border-gray-300"
+                        }`}
+                      >
+                        {stop.status === "completed" && (
+                          <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {stop.status === "current" && (
+                          <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                        )}
+                      </div>
                       {index < busStopsTimeline.length - 1 && (
                         <div
-                          className={`w-0.5 h-8 ${
+                          className={`w-0.5 h-12 ${
                             stop.status === "completed"
-                              ? "bg-blue-500"
+                              ? "bg-blue-600"
                               : "bg-gray-300"
                           }`}
                         ></div>
                       )}
                     </div>
 
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm text-gray-500">
-                            {stop.time}
-                          </div>
-                          {stop.actualTime && (
-                            <div className="text-xs text-red-500">
-                              {stop.actualTime}
-                            </div>
+                    <div className="flex-1 pb-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className={`font-medium ${
+                          stop.status === "current" ? "text-blue-800" : "text-gray-800"
+                        }`}>
+                          {stop.name}
+                          {stop.status === "current" && (
+                            <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
+                              Current Stop
+                            </span>
                           )}
                         </div>
-                        <div className="flex-1 ml-4">
-                          <div
-                            className={`font-medium ${
-                              stop.status === "current"
-                                ? "text-blue-800"
-                                : "text-gray-800"
-                            }`}
-                          >
-                            {stop.name}
-                            {stop.status === "current" && (
-                              <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-1 rounded-full">
-                                Current
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {stop.distance}
-                          </div>
+                        <div className="text-sm text-gray-500">
+                          {stop.time}
                         </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-gray-600">
+                          {stop.distance} from start
+                        </div>
+                        {stop.actualTime && (
+                          <div className={`text-xs px-2 py-1 rounded ${
+                            stop.status === "completed" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          }`}>
+                            {stop.status === "completed" ? "Arrived" : "Delayed"}: {stop.actualTime}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -788,40 +813,61 @@ const LivetTrack = () => {
                   : "text-gray-600 hover:text-gray-800"
               }`}
             >
-              {tabName === "Live status" && routeData ? "Route Map" : tabName}
+              {tabName === "Live status" ? "Live Tracking" : "Timeline"}
             </button>
           ))}
         </div>
 
         {/* Bottom Section */}
-        <div className="px-4 mt-6 pb-6">
-          {/* Route and Fare */}
+        <div className="px-4 mt-6 pb-20">
+          {/* Quick Actions */}
           <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-gray-600">{currentBus.route}</div>
-              <div className="text-2xl font-bold text-gray-800">
-                ₹ {currentBus.fare}
-              </div>
+            <h3 className="font-semibold text-gray-800 mb-3">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button className="flex items-center justify-center gap-2 py-3 border-2 border-blue-600 text-blue-600 font-medium rounded-xl hover:bg-blue-50 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Set Alarm
+              </button>
+              <button className="flex items-center justify-center gap-2 py-3 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                Pay Fare
+              </button>
             </div>
-            {currentBus.duration && (
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>Journey Duration: {currentBus.duration}</span>
-                <span>Distance: {currentBus.distance}</span>
-              </div>
-            )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            <button className="flex-1 py-4 border-2 border-blue-600 text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-colors">
-              Alarm
-            </button>
-            <button className="flex-1 py-4 bg-blue-600 text-white font-semibold rounded-2xl hover:bg-blue-700 transition-colors">
-              Pay the fare
-            </button>
+          {/* Journey Summary */}
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <h3 className="font-semibold text-gray-800 mb-3">Journey Summary</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Route:</span>
+                <span className="font-medium">{currentBus.route}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Fare:</span>
+                <span className="font-bold text-green-600">₹{currentBus.fare}</span>
+              </div>
+              {currentBus.duration && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Duration:</span>
+                  <span className="font-medium">{currentBus.duration}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Distance:</span>
+                <span className="font-medium">{currentBus.distance}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 };

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import pb from "../../services/pocketbase";
-import moBusService from "../../services/moBusService";
+import dbService from "../../services/dbService";
 import routingService from "../../services/routingService";
+import BottomNav from "../BottomNav";
 pb.autoCancellation(false);
 
 const ListBus = () => {
@@ -14,34 +15,39 @@ const ListBus = () => {
   const { from, to, date, foundRoutes } = location.state || {};
 
   // Get real route data using OpenRouter service
-  const getRealRouteData = async (fromStop, toStop) => {
+  const getRealRouteData = async (fromStop, toStop, routeStops = null) => {
     try {
       // Get coordinates for stops from PocketBase
       let fromStopData = null;
       let toStopData = null;
       
-      try {
-        const fromStopResponse = await pb.collection('buses').getFirstListItem(`from_stop ~ "${fromStop}"`);
-        fromStopData = {
-          coordinates: {
-            lat: fromStopResponse.from_lat || 20.2961,
-            lng: fromStopResponse.from_lng || 85.8245
-          }
-        };
-      } catch (e) {
-        console.log('From stop not found in database:', fromStop);
+      // Get coordinates from dbService fallback
+      const fromCoords = await dbService.getStopCoordinates(fromStop);
+      const toCoords = await dbService.getStopCoordinates(toStop);
+      
+      if (fromCoords) {
+        fromStopData = { coordinates: fromCoords };
       }
       
-      try {
-        const toStopResponse = await pb.collection('buses').getFirstListItem(`to_stop ~ "${toStop}"`);
-        toStopData = {
-          coordinates: {
-            lat: toStopResponse.to_lat || 20.2500,
-            lng: toStopResponse.to_lng || 85.8400
+      if (toCoords) {
+        toStopData = { coordinates: toCoords };
+      }
+      
+      // If we have route stops, try to calculate route-based distance first
+      if (routeStops && routeStops.length > 2) {
+        try {
+          const routeDistance = await dbService.calculateRouteDistance(fromStop, toStop, routeStops);
+          if (routeDistance > 0) {
+            console.log('Using route-based distance calculation:', routeDistance.toFixed(2), 'km');
+            return {
+              distance: routeDistance,
+              duration: Math.round((routeDistance / 30) * 60), // 30 km/h average
+              source: 'route_based'
+            };
           }
-        };
-      } catch (e) {
-        console.log('To stop not found in database:', toStop);
+        } catch (routeError) {
+          console.log('Route-based calculation failed, using API:', routeError.message);
+        }
       }
       
       if (fromStopData?.coordinates && toStopData?.coordinates && 
@@ -74,12 +80,12 @@ const ListBus = () => {
           const apiDistanceKm = routeData.distance / 1000;
           console.log('API returned distance:', apiDistanceKm.toFixed(2), 'km');
           
-          // Validate API result - if it's more than 1.8x straight line, use fallback
-          if (apiDistanceKm > straightDistance * 1.8) {
+          // Validate API result - if it's more than 2.5x straight line, use fallback
+          if (apiDistanceKm > straightDistance * 2.5) {
             console.log('⚠️ API distance seems incorrect, using fallback calculation');
             return {
-              distance: Math.min(straightDistance * 1.4, 8), // Max 8km for city routes
-              duration: Math.round((straightDistance * 1.4 / 25) * 60), // 25 km/h avg speed
+              distance: Math.min(straightDistance * 1.6, 25), // Max 25km for longer routes
+              duration: Math.round((straightDistance * 1.6 / 30) * 60), // 30 km/h avg speed
               source: 'corrected_fallback'
             };
           }
@@ -118,25 +124,17 @@ const ListBus = () => {
       let fromStopData = null;
       let toStopData = null;
       
-      try {
-        const fromStopResponse = await pb.collection('buses').getFirstListItem(`from_stop ~ "${fromStop}"`);
-        fromStopData = {
-          coordinates: {
-            lat: fromStopResponse.from_lat || 20.2961,
-            lng: fromStopResponse.from_lng || 85.8245
-          }
-        };
-      } catch (e) {}
+      // Get coordinates from dbService fallback
+      const fromCoords = await dbService.getStopCoordinates(fromStop);
+      const toCoords = await dbService.getStopCoordinates(toStop);
       
-      try {
-        const toStopResponse = await pb.collection('buses').getFirstListItem(`to_stop ~ "${toStop}"`);
-        toStopData = {
-          coordinates: {
-            lat: toStopResponse.to_lat || 20.2500,
-            lng: toStopResponse.to_lng || 85.8400
-          }
-        };
-      } catch (e) {}
+      if (fromCoords) {
+        fromStopData = { coordinates: fromCoords };
+      }
+      
+      if (toCoords) {
+        toStopData = { coordinates: toCoords };
+      }
       
       if (fromStopData?.coordinates && toStopData?.coordinates &&
           fromStopData.coordinates.lat && fromStopData.coordinates.lng &&
@@ -157,13 +155,13 @@ const ListBus = () => {
         else if (hour >= 17 && hour <= 20) speedFactor = 0.7; // Evening rush
         else if (hour >= 22 || hour <= 5) speedFactor = 1.3; // Night time
         
-        const baseSpeed = 25; // km/h average city speed
+        const baseSpeed = 30; // km/h average speed (increased for better accuracy)
         const adjustedSpeed = baseSpeed * speedFactor;
         const duration = Math.round((distance / adjustedSpeed) * 60);
         
         return {
           distance: distance,
-          duration: Math.max(5, duration),
+          duration: Math.max(10, duration), // Minimum 10 minutes
           source: 'offline'
         };
       }
@@ -173,8 +171,8 @@ const ListBus = () => {
     
     // Ultimate fallback with reasonable defaults
     return {
-      distance: 8.5, // Average city route distance
-      duration: 22,  // Average city travel time
+      distance: 16.6, // More realistic average distance
+      duration: 35,   // More realistic travel time
       source: 'estimated'
     };
   };
@@ -251,7 +249,17 @@ const ListBus = () => {
       console.log('Fetching real bus data with OpenRouter integration...');
       
       // Get real route data from OpenRouteService for accurate ETA
-      const routeData = await getRealRouteData(from, to);
+      // Try to find a matching route to get stops for better calculation
+      let matchingRoute = null;
+      if (routes && routes.length > 0) {
+        matchingRoute = routes.find(route => 
+          route.stops && route.stops.length > 2 &&
+          route.stops.some(stop => stop.toLowerCase().includes(from.toLowerCase())) &&
+          route.stops.some(stop => stop.toLowerCase().includes(to.toLowerCase()))
+        );
+      }
+      
+      const routeData = await getRealRouteData(from, to, matchingRoute?.stops);
       console.log('Route data from OpenRouteService:', routeData);
       
       // Handle route data with proper fallbacks
@@ -264,10 +272,7 @@ const ListBus = () => {
       // Try to fetch real buses from PocketBase
       let realBuses = [];
       try {
-        const response = await pb.collection('buses').getFullList({
-          expand: 'route_id',
-          sort: 'departure_time'
-        });
+        const response = await pb.collection('buses').getFullList();
         realBuses = response || [];
 
         console.log('Successfully fetched', realBuses.length, 'buses from database');
@@ -292,6 +297,9 @@ const ListBus = () => {
             // Get real-time crowd data
             const crowdData = await getRealTimeCrowdData(bus.id);
             
+            // Simple ETA calculation
+            const etaMinutes = Math.floor(Math.random() * 25) + 10; // 10-35 minutes
+            
             const departureTime = new Date(currentTime);
             departureTime.setMinutes(currentTime.getMinutes() + (i * 18) + Math.floor(Math.random() * 12));
             const arrivalTime = new Date(departureTime);
@@ -304,11 +312,10 @@ const ListBus = () => {
             enhancedBuses.push({
               ...bus,
               route_color: matchingRoute.color,
-              stops: matchingRoute.stops,
               from_stop: from,
               to_stop: to,
               distance: `${safeDistance.toFixed(1)} km`,
-              eta: `${safeDuration + delayMinutes} min`,
+              eta: `${etaMinutes + delayMinutes} min`,
               departure_time: departureTime.toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -321,12 +328,8 @@ const ListBus = () => {
               }),
               duration: `${safeDuration + delayMinutes} min`,
               current_capacity: crowdData.current_capacity,
-              max_capacity: crowdData.max_capacity,
               status: isDelayed ? "Delayed" : "On Time",
-              delay: delayMinutes,
-              route_source: safeSource,
-              crowd_trend: crowdData.trend,
-              last_updated: crowdData.lastUpdated
+              delay: delayMinutes
             });
           }
         }
@@ -340,6 +343,9 @@ const ListBus = () => {
           
           for (let i = 0; i < busCount; i++) {
             const crowdData = await getRealTimeCrowdData(`generated-${routeIndex}-${i}`);
+            
+            // Simple ETA calculation for generated buses
+            const etaMinutes = Math.floor(Math.random() * 25) + 10;
             
             const departureTime = new Date(currentTime);
             departureTime.setMinutes(currentTime.getMinutes() + (enhancedBuses.length * 22) + Math.floor(Math.random() * 15));
@@ -369,17 +375,12 @@ const ListBus = () => {
               }),
               duration: `${safeDuration + delayMinutes} min`,
               distance: `${safeDistance.toFixed(1)} km`,
+              eta: `${etaMinutes + delayMinutes} min`,
               current_capacity: crowdData.current_capacity,
-              max_capacity: crowdData.max_capacity,
               status: isDelayed ? "Delayed" : "On Time",
               delay: delayMinutes,
-              stops: route.stops,
               from_stop: from,
-              to_stop: to,
-              eta: `${safeDuration + delayMinutes} min`,
-              route_source: safeSource,
-              crowd_trend: crowdData.trend,
-              last_updated: crowdData.lastUpdated
+              to_stop: to
             });
           }
         }
@@ -494,27 +495,9 @@ const ListBus = () => {
         if (foundRoutes && foundRoutes.length > 0) {
           routesToShow = foundRoutes;
         }
-        // Otherwise, try to find routes from PocketBase
+        // Otherwise, try to find routes using dbService
         else if (from && to) {
-          try {
-            const routesResponse = await pb.collection('routes').getFullList({
-              filter: `stops ~ "${from}" && stops ~ "${to}"`
-            });
-            
-            routesToShow = routesResponse.map(route => ({
-              route_id: route.route_number || route.id,
-              name: route.name,
-              stops: Array.isArray(route.stops) ? route.stops : 
-                     typeof route.stops === 'string' ? JSON.parse(route.stops) : [],
-              color: route.color || '#3B82F6',
-              fare: route.fare || 25,
-              distance: route.distance || 10,
-              estimatedTime: route.estimated_time || 30
-            }));
-          } catch (dbError) {
-            console.log('No routes found in database for', from, 'to', to);
-            routesToShow = [];
-          }
+          routesToShow = await dbService.findRoutesBetweenStops(from, to);
         }
         // If no specific route, try to get some sample routes from database
         else {
@@ -537,7 +520,7 @@ const ListBus = () => {
             console.log(`Found ${routesToShow.length} sample routes from database`);
           } catch (dbError) {
             console.log("Database not available, using mock data:", dbError.message);
-            routesToShow = moBusService.getAllRoutes().slice(0, 3); // Show first 3 routes as sample
+            routesToShow = []; // No fallback routes
           }
         }
 
@@ -627,7 +610,7 @@ const ListBus = () => {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4">
+      <div className="max-w-md mx-auto p-4 pb-20">
         {buses.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <svg
@@ -727,10 +710,12 @@ const ListBus = () => {
                     </div>
                   </div>
 
+
+
                   {/* Status and Stats */}
                   <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div
                           className={`h-full transition-all duration-300 ${
                             bus.current_capacity > 80
@@ -743,37 +728,14 @@ const ListBus = () => {
                         ></div>
                       </div>
                       <div className="text-xs text-gray-600">
-                        {bus.current_capacity}%
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Crowd
-                        {bus.crowd_trend && (
-                          <span className={`ml-1 ${
-                            bus.crowd_trend === 'increasing' ? 'text-red-500' : 
-                            bus.crowd_trend === 'decreasing' ? 'text-green-500' : 'text-gray-400'
-                          }`}>
-                            {bus.crowd_trend === 'increasing' ? '↗' : 
-                             bus.crowd_trend === 'decreasing' ? '↘' : '→'}
-                          </span>
-                        )}
+                        {bus.current_capacity}% full
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="font-semibold text-gray-800">
                         {bus.distance}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Distance
-                        {bus.route_source && (
-                          <div className={`text-xs mt-1 ${
-                            bus.route_source === 'online' ? 'text-green-600' : 
-                            bus.route_source === 'offline' ? 'text-orange-600' : 'text-gray-500'
-                          }`}>
-                            {bus.route_source === 'online' ? '🌐 Live' : 
-                             bus.route_source === 'offline' ? '📱 Cached' : '📊 Est'}
-                          </div>
-                        )}
-                      </div>
+                      <div className="text-xs text-gray-500">Distance</div>
                     </div>
                     <div className="text-right">
                       <div
@@ -787,40 +749,10 @@ const ListBus = () => {
                           ? "On Time"
                           : `Delayed ${bus.delay}m`}
                       </div>
-                      {bus.last_updated && (
-                        <div className="text-xs text-gray-400 mt-1">
-                          Updated {new Date(bus.last_updated).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  {/* Stops Preview */}
-                  {bus.stops && bus.stops.length > 0 && (
-                    <div className="mb-4">
-                      <div className="text-xs text-gray-500 mb-1">
-                        Route stops:
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {bus.stops.slice(0, 3).map((stop, stopIndex) => (
-                          <span
-                            key={stopIndex}
-                            className="text-xs bg-gray-100 px-2 py-1 rounded"
-                          >
-                            {stop}
-                          </span>
-                        ))}
-                        {bus.stops.length > 3 && (
-                          <span className="text-xs text-gray-500">
-                            +{bus.stops.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+
 
                   {/* Action Buttons */}
                   <div className="flex gap-2">
@@ -834,16 +766,16 @@ const ListBus = () => {
                           },
                         })
                       }
-                      className="flex-1 py-2 px-4 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium text-sm"
+                      className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
                     >
                       Track Bus
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => handleSelectBus(bus)}
                       className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
                     >
                       Select Seat
-                    </button>
+                    </button> */}
                   </div>
                 </div>
               </div>
@@ -851,6 +783,9 @@ const ListBus = () => {
           </div>
         )}
       </div>
+      
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 };
