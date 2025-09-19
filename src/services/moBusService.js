@@ -73,7 +73,7 @@ class MoBusService {
     const stops = {
       // Major landmarks and stations
       "MASTER CANTEEN": { lat: 20.2961, lng: 85.8245, type: "major_hub" },
-      "RAILWAY STATION": { lat: 20.2961, lng: 85.8245, type: "transport_hub" },
+      "RAILWAY STATION": { lat: 20.2500, lng: 85.8400, type: "transport_hub" },
       "AIRPORT": { lat: 20.2444, lng: 85.8178, type: "transport_hub" },
       
       // Educational institutions

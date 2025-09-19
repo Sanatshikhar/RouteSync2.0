@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useBuses } from '../../hooks/useBuses';
 import useGeolocation from '../../hooks/useGeolocation';
 import moBusService from '../../services/moBusService';
+import pb from '../../services/pocketbase';
 
 const SearchBus = () => {
   const navigate = useNavigate();
@@ -159,8 +160,28 @@ const SearchBus = () => {
 
     saveSearch();
     
-    // Find routes between the selected stops
-    const routes = moBusService.findRoutesBetweenStops(from, to);
+    // Find routes between the selected stops from database
+    let routes = [];
+    try {
+      const response = await pb.collection('routes').getFullList({
+        filter: `start_point ~ "${from}" || end_point ~ "${from}" || start_point ~ "${to}" || end_point ~ "${to}"`,
+        expand: 'stops'
+      });
+      
+      routes = response.map(route => ({
+        route_id: route.route_number || route.id,
+        name: route.name,
+        stops: Array.isArray(route.stops) ? route.stops : 
+               typeof route.stops === 'string' ? JSON.parse(route.stops) : [],
+        color: route.color || '#3B82F6',
+        fare: route.fare || 25,
+        distance: route.distance || 10,
+        estimatedTime: route.estimated_time || 30
+      }));
+    } catch (dbError) {
+      console.log('Database not available, using local routes:', dbError.message);
+      routes = moBusService.findRoutesBetweenStops(from, to);
+    }
     
     navigate('/listBus', { 
       state: { 
@@ -247,7 +268,33 @@ const SearchBus = () => {
   const autoFetchRoutes = async (fromLocation, toLocation) => {
     setIsSearching(true);
     try {
-      const routes = moBusService.findRoutesBetweenStops(fromLocation, toLocation);
+      // First try to get routes from PocketBase database
+      let routes = [];
+      try {
+        const response = await pb.collection('routes').getFullList({
+          filter: `start_point ~ "${fromLocation}" || end_point ~ "${fromLocation}" || start_point ~ "${toLocation}" || end_point ~ "${toLocation}"`,
+          expand: 'stops'
+        });
+        
+        // Convert PocketBase routes to expected format
+        routes = response.map(route => ({
+          route_id: route.route_number || route.id,
+          name: route.name,
+          stops: Array.isArray(route.stops) ? route.stops : 
+                 typeof route.stops === 'string' ? JSON.parse(route.stops) : [],
+          color: route.color || '#3B82F6',
+          fare: route.fare || 25,
+          distance: route.distance || 10,
+          estimatedTime: route.estimated_time || 30
+        }));
+        
+        console.log(`Found ${routes.length} routes from database`);
+      } catch (dbError) {
+        console.log('Database not available, using local routes:', dbError.message);
+        // Fallback to local data
+        routes = moBusService.findRoutesBetweenStops(fromLocation, toLocation);
+      }
+      
       setFoundRoutes(routes);
       
       if (routes.length > 0) {

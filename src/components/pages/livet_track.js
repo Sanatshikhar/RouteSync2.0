@@ -4,6 +4,7 @@ import useGeolocation from "../../hooks/useGeolocation";
 import Map from "../Map";
 import moBusService from "../../services/moBusService";
 import routingService from "../../services/routingService";
+import pb from "../../services/pocketbase";
 
 const LivetTrack = () => {
   const location = useLocation();
@@ -52,10 +53,6 @@ const LivetTrack = () => {
         // Small random updates to make it feel live
         setCurrentBus((prev) => ({
           ...prev,
-          crowdStatus: Math.max(
-            20,
-            Math.min(100, prev.crowdStatus + (Math.random() * 10 - 5))
-          ),
           eta: new Date(
             Date.now() + Math.random() * 20 * 60000
           ).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
@@ -73,11 +70,35 @@ const LivetTrack = () => {
         try {
           console.log('Calculating route from', from, 'to', to);
           
-          // Get coordinates for from/to locations
-          const fromStopData = moBusService.getStopDetails(from);
-          const toStopData = moBusService.getStopDetails(to);
+          // Get coordinates for from/to locations from PocketBase
+          let fromStopData = null;
+          let toStopData = null;
           
-          if (fromStopData.coordinates && toStopData.coordinates) {
+          try {
+            const fromStopResponse = await pb.collection('buses').getFirstListItem(`from_stop ~ "${from}"`);
+            fromStopData = {
+              coordinates: {
+                lat: fromStopResponse.from_lat || 20.2961,
+                lng: fromStopResponse.from_lng || 85.8245
+              }
+            };
+          } catch (e) {
+            console.log('From stop not found in database:', from);
+          }
+          
+          try {
+            const toStopResponse = await pb.collection('buses').getFirstListItem(`to_stop ~ "${to}"`);
+            toStopData = {
+              coordinates: {
+                lat: toStopResponse.to_lat || 20.2500,
+                lng: toStopResponse.to_lng || 85.8400
+              }
+            };
+          } catch (e) {
+            console.log('To stop not found in database:', to);
+          }
+          
+          if (fromStopData?.coordinates && toStopData?.coordinates) {
             const startCoords = {
               lat: fromStopData.coordinates.lat,
               lng: fromStopData.coordinates.lng,
@@ -137,28 +158,65 @@ const LivetTrack = () => {
     const initializeData = async () => {
       setLoading(true);
       try {
-        const stops = moBusService.getAllStops();
+        // Try to get bus stops from database first
+        let stops = [];
+        try {
+          const stopsResponse = await pb.collection('buses').getFullList();
+          stops = stopsResponse.map(bus => ({
+            name: bus.from_stop,
+            coordinates: {
+              lat: bus.from_lat || 20.2961,
+              lng: bus.from_lng || 85.8245,
+              type: 'bus_stop'
+            },
+            routes: [bus.route_id]
+          }));
+          console.log(`Loaded ${stops.length} bus stops from database`);
+        } catch (dbError) {
+          console.log('Database not available, using fallback stops:', dbError.message);
+          stops = [];
+        }
+        
         setAllBusStops(stops);
 
         // Use passed bus data if available, otherwise generate demo data
         if (passedBus) {
           console.log("Using passed bus data:", passedBus);
 
-          // Find the route for this bus
+          // Find the route for this bus from database first
           let busRoute = null;
-          if (passedBus.stops && passedBus.stops.length > 0) {
-            // Use the stops from the passed bus
-            busRoute = {
-              route_id: passedBus.route_id,
-              color: passedBus.route_color || "#3B82F6",
-              stops: passedBus.stops,
-            };
-          } else {
-            // Try to find route from moBusService
-            const routes = moBusService.getAllRoutes();
-            busRoute =
-              routes.find((r) => r.route_id === passedBus.route_id) ||
-              routes[0];
+          try {
+            if (passedBus.route_id) {
+              const routeResponse = await pb.collection('routes').getFirstListItem(
+                `route_number = "${passedBus.route_id}"`,
+                { expand: 'stops' }
+              );
+              
+              busRoute = {
+                route_id: routeResponse.route_number || routeResponse.id,
+                color: routeResponse.color || "#3B82F6",
+                stops: Array.isArray(routeResponse.stops) ? routeResponse.stops : 
+                       typeof routeResponse.stops === 'string' ? JSON.parse(routeResponse.stops) : [],
+                name: routeResponse.name
+              };
+              console.log('Found route from database:', busRoute);
+            }
+          } catch (dbError) {
+            console.log('Route not found in database, using fallback:', dbError.message);
+          }
+          
+          // Fallback to local data or passed bus data
+          if (!busRoute) {
+            if (passedBus.stops && passedBus.stops.length > 0) {
+              busRoute = {
+                route_id: passedBus.route_id,
+                color: passedBus.route_color || "#3B82F6",
+                stops: passedBus.stops,
+              };
+            } else {
+              const routes = moBusService.getAllRoutes();
+              busRoute = routes.find((r) => r.route_id === passedBus.route_id) || routes[0];
+            }
           }
 
           setSelectedRoute(busRoute);
@@ -173,8 +231,7 @@ const LivetTrack = () => {
             }`,
             routeId: passedBus.route_id,
             color: passedBus.route_color || busRoute.color,
-            crowdStatus:
-              passedBus.current_capacity || Math.floor(Math.random() * 80) + 20,
+
             nextStop: busRoute.stops[Math.floor(busRoute.stops.length / 3)],
             eta:
               passedBus.arrival_time ||
@@ -213,7 +270,7 @@ const LivetTrack = () => {
             }`,
             routeId: randomRoute.route_id,
             color: randomRoute.color,
-            crowdStatus: Math.floor(Math.random() * 80) + 20,
+
             nextStop:
               randomRoute.stops[Math.floor(randomRoute.stops.length / 3)],
             eta: new Date(
@@ -341,7 +398,7 @@ const LivetTrack = () => {
         last_known_lat: currentStop.coordinates.lat,
         last_known_lng: currentStop.coordinates.lng,
         status: currentBus.status,
-        current_capacity: Math.floor((currentBus.crowdStatus / 100) * 50),
+        current_capacity: Math.floor(Math.random() * 30) + 20,
         max_capacity: 50,
         last_location_update: new Date().toISOString(),
       },
@@ -372,10 +429,7 @@ const LivetTrack = () => {
       const updatedBus = {
         ...currentBus,
         currentStopIndex: newStopIndex,
-        crowdStatus: Math.max(
-          20,
-          currentBus.crowdStatus + (Math.random() * 20 - 10)
-        ), // Fluctuate crowd
+
         eta: new Date(
           Date.now() + Math.random() * 15 * 60000
         ).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
@@ -630,21 +684,7 @@ const LivetTrack = () => {
                   )}
                 </div>
 
-                {/* Crowd Status */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-3xl font-bold text-green-600">
-                      {currentBus.crowdStatus}%
-                    </span>
-                    <span className="text-sm text-gray-500">Crowd status</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${currentBus.crowdStatus}%` }}
-                    ></div>
-                  </div>
-                </div>
+
 
                 {/* Status Info */}
                 <div className="flex items-center justify-between text-sm">

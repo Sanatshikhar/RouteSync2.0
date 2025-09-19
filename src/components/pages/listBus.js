@@ -16,11 +16,35 @@ const ListBus = () => {
   // Get real route data using OpenRouter service
   const getRealRouteData = async (fromStop, toStop) => {
     try {
-      // Get coordinates for stops from moBusService
-      const fromStopData = moBusService.getStopDetails(fromStop);
-      const toStopData = moBusService.getStopDetails(toStop);
+      // Get coordinates for stops from PocketBase
+      let fromStopData = null;
+      let toStopData = null;
       
-      if (fromStopData.coordinates && toStopData.coordinates && 
+      try {
+        const fromStopResponse = await pb.collection('buses').getFirstListItem(`from_stop ~ "${fromStop}"`);
+        fromStopData = {
+          coordinates: {
+            lat: fromStopResponse.from_lat || 20.2961,
+            lng: fromStopResponse.from_lng || 85.8245
+          }
+        };
+      } catch (e) {
+        console.log('From stop not found in database:', fromStop);
+      }
+      
+      try {
+        const toStopResponse = await pb.collection('buses').getFirstListItem(`to_stop ~ "${toStop}"`);
+        toStopData = {
+          coordinates: {
+            lat: toStopResponse.to_lat || 20.2500,
+            lng: toStopResponse.to_lng || 85.8400
+          }
+        };
+      } catch (e) {
+        console.log('To stop not found in database:', toStop);
+      }
+      
+      if (fromStopData?.coordinates && toStopData?.coordinates && 
           fromStopData.coordinates.lat && fromStopData.coordinates.lng &&
           toStopData.coordinates.lat && toStopData.coordinates.lng) {
         
@@ -38,7 +62,7 @@ const ListBus = () => {
         console.log('Getting route from:', startCoords, 'to:', endCoords);
         
         // Calculate straight-line distance for validation
-        const straightDistance = moBusService.calculateDistance(
+        const straightDistance = calculateDistance(
           startCoords.lat, startCoords.lng, endCoords.lat, endCoords.lng
         );
         console.log('Straight-line distance:', straightDistance.toFixed(2), 'km');
@@ -72,21 +96,53 @@ const ListBus = () => {
     }
     
     // Use fallback calculation
-    return calculateFallbackRouteData(fromStop, toStop);
+    return await calculateFallbackRouteData(fromStop, toStop);
+  };
+
+  // Calculate distance between two points
+  const calculateDistance = (lat1, lng1, lat2, lng2) => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   };
 
   // Fallback route calculation
-  const calculateFallbackRouteData = (fromStop, toStop) => {
+  const calculateFallbackRouteData = async (fromStop, toStop) => {
     try {
-      // Try to find stops in moBusService
-      const fromStopData = moBusService.getStopDetails(fromStop);
-      const toStopData = moBusService.getStopDetails(toStop);
+      // Try to find stops in PocketBase
+      let fromStopData = null;
+      let toStopData = null;
       
-      if (fromStopData.coordinates && toStopData.coordinates &&
+      try {
+        const fromStopResponse = await pb.collection('buses').getFirstListItem(`from_stop ~ "${fromStop}"`);
+        fromStopData = {
+          coordinates: {
+            lat: fromStopResponse.from_lat || 20.2961,
+            lng: fromStopResponse.from_lng || 85.8245
+          }
+        };
+      } catch (e) {}
+      
+      try {
+        const toStopResponse = await pb.collection('buses').getFirstListItem(`to_stop ~ "${toStop}"`);
+        toStopData = {
+          coordinates: {
+            lat: toStopResponse.to_lat || 20.2500,
+            lng: toStopResponse.to_lng || 85.8400
+          }
+        };
+      } catch (e) {}
+      
+      if (fromStopData?.coordinates && toStopData?.coordinates &&
           fromStopData.coordinates.lat && fromStopData.coordinates.lng &&
           toStopData.coordinates.lat && toStopData.coordinates.lng) {
         
-        const distance = moBusService.calculateDistance(
+        const distance = calculateDistance(
           fromStopData.coordinates.lat, fromStopData.coordinates.lng,
           toStopData.coordinates.lat, toStopData.coordinates.lng
         );
@@ -213,6 +269,7 @@ const ListBus = () => {
           sort: 'departure_time'
         });
         realBuses = response || [];
+
         console.log('Successfully fetched', realBuses.length, 'buses from database');
       } catch (dbError) {
         console.log('Database not available, using generated data:', dbError.message);
@@ -437,21 +494,49 @@ const ListBus = () => {
         if (foundRoutes && foundRoutes.length > 0) {
           routesToShow = foundRoutes;
         }
-        // Otherwise, try to find routes using moBusService
+        // Otherwise, try to find routes from PocketBase
         else if (from && to) {
-          routesToShow = moBusService.findRoutesBetweenStops(from, to);
+          try {
+            const routesResponse = await pb.collection('routes').getFullList({
+              filter: `stops ~ "${from}" && stops ~ "${to}"`
+            });
+            
+            routesToShow = routesResponse.map(route => ({
+              route_id: route.route_number || route.id,
+              name: route.name,
+              stops: Array.isArray(route.stops) ? route.stops : 
+                     typeof route.stops === 'string' ? JSON.parse(route.stops) : [],
+              color: route.color || '#3B82F6',
+              fare: route.fare || 25,
+              distance: route.distance || 10,
+              estimatedTime: route.estimated_time || 30
+            }));
+          } catch (dbError) {
+            console.log('No routes found in database for', from, 'to', to);
+            routesToShow = [];
+          }
         }
-        // If no specific route, try to get some sample buses from database
+        // If no specific route, try to get some sample routes from database
         else {
           try {
-            const response = await pb.collection("buses").getFullList({
-              expand: "route_id",
+            const routesResponse = await pb.collection("routes").getList(1, 5, {
+              expand: "stops",
             });
-            setBuses(response || []);
-            setLoading(false);
-            return;
+            
+            routesToShow = routesResponse.items.map(route => ({
+              route_id: route.route_number || route.id,
+              name: route.name,
+              stops: Array.isArray(route.stops) ? route.stops : 
+                     typeof route.stops === 'string' ? JSON.parse(route.stops) : [],
+              color: route.color || '#3B82F6',
+              fare: route.fare || 25,
+              distance: route.distance || 10,
+              estimatedTime: route.estimated_time || 30
+            }));
+            
+            console.log(`Found ${routesToShow.length} sample routes from database`);
           } catch (dbError) {
-            console.log("Database not available, using mock data");
+            console.log("Database not available, using mock data:", dbError.message);
             routesToShow = moBusService.getAllRoutes().slice(0, 3); // Show first 3 routes as sample
           }
         }

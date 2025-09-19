@@ -1,7 +1,8 @@
 // PocketBase service for CRUD and auth
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase(process.env.REACT_APP_PB_URL); // Change to your PocketBase URL
+const pb = new PocketBase(process.env.REACT_APP_POCKETBASE_URL || 'http://127.0.0.1:8090');
+
 
 export default pb;
 

@@ -5,7 +5,7 @@ import BottomNav from "../BottomNav";
 import { useAuth } from "../../contexts/AuthContext";
 
 // Initialize PocketBase client
-const pb = new PocketBase("http://127.0.0.1:8090"); // Replace with your PocketBase URL
+const pb = new PocketBase(process.env.REACT_APP_POCKETBASE_URL || "http://127.0.0.1:8090");
 
 const HomePage = () => {
   const navigate = useNavigate();
