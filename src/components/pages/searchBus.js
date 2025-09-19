@@ -18,6 +18,9 @@ const SearchBus = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [nearbyBuses, setNearbyBuses] = useState([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [useManualLocation, setUseManualLocation] = useState(false);
+  const [manualLocationQuery, setManualLocationQuery] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
 
   useEffect(() => {
     // Handle location passed from HomePage
@@ -35,7 +38,7 @@ const SearchBus = () => {
 
   // Auto-fetch user location and nearby buses
   useEffect(() => {
-    if (userLocation) {
+    if (userLocation && !useManualLocation) {
       setIsLoadingLocation(false);
       // Find nearest bus stop to user's location
       const allStops = moBusService.getAllStops();
@@ -49,13 +52,50 @@ const SearchBus = () => {
         }))
         .sort((a, b) => a.distance - b.distance)[0];
 
-      if (nearestStop) {
+      if (nearestStop && nearestStop.distance <= 10) { // Only auto-fill if within 10km
         setFrom(nearestStop.name);
         // Auto-fetch buses in this zone
         fetchBusesInZone(nearestStop);
+      } else {
+        // If no nearby stop found, suggest manual entry
+        setIsLoadingLocation(false);
       }
+    } else if (!userLocation) {
+      // If location permission denied or not available, show manual option after timeout
+      setTimeout(() => {
+        setIsLoadingLocation(false);
+      }, 5000);
     }
-  }, [userLocation]);
+  }, [userLocation, useManualLocation]);
+
+  // Handle manual location search
+  const handleManualLocationSearch = (query) => {
+    setManualLocationQuery(query);
+    if (query.length > 2) {
+      const matches = moBusService.searchStops(query);
+      setLocationSuggestions(matches.slice(0, 5));
+    } else {
+      setLocationSuggestions([]);
+    }
+  };
+
+  // Select manual location
+  const selectManualLocation = (stop) => {
+    setFrom(stop.name);
+    setManualLocationQuery(stop.name);
+    setLocationSuggestions([]);
+    setUseManualLocation(true);
+    
+    // Fetch buses in this zone
+    fetchBusesInZone(stop);
+  };
+
+  // Switch to manual location entry
+  const switchToManualLocation = () => {
+    setUseManualLocation(true);
+    setFrom("");
+    setNearbyBuses([]);
+  };
 
   // Fetch buses in the user's zone
   const fetchBusesInZone = (nearestStop) => {
@@ -101,18 +141,21 @@ const SearchBus = () => {
 
   const handleSearch = async () => {
     if (!from || !to) {
-      alert('Please select source');
+      alert('Please select both source and destination');
       return;
     }
 
     saveSearch();
-    await searchBuses(from, to);
+    
+    // Find routes between the selected stops
+    const routes = moBusService.findRoutesBetweenStops(from, to);
+    
     navigate('/listBus', { 
       state: { 
         from, 
         to, 
         date, 
-        buses,
+        foundRoutes: routes,
         tripType 
       } 
     });
@@ -348,22 +391,99 @@ const SearchBus = () => {
         {/* Location Status */}
         {isLoadingLocation ? (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
-              <span className="font-semibold text-orange-800">Getting your location...</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
+                <span className="font-semibold text-orange-800">Getting your location...</span>
+              </div>
+              <button
+                onClick={switchToManualLocation}
+                className="text-sm bg-orange-600 text-white px-3 py-1 rounded-full hover:bg-orange-700 transition-colors"
+              >
+                Enter Manually
+              </button>
             </div>
-            <div className="text-sm text-orange-700 mt-1">
-              Please allow location access to see nearby buses
+            <div className="text-sm text-orange-700">
+              Please allow location access or enter your location manually
             </div>
           </div>
-        ) : userLocation ? (
+        ) : userLocation && !useManualLocation ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="font-semibold text-green-800">Location Found!</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="font-semibold text-green-800">Location Found!</span>
+              </div>
+              <button
+                onClick={switchToManualLocation}
+                className="text-sm bg-green-600 text-white px-3 py-1 rounded-full hover:bg-green-700 transition-colors"
+              >
+                Change Location
+              </button>
             </div>
             <div className="text-sm text-green-700">
-              Showing buses near your location
+              Showing buses near your location ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
+            </div>
+          </div>
+        ) : useManualLocation ? (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-blue-800">Enter Your Location</span>
+              {userLocation && (
+                <button
+                  onClick={() => {
+                    setUseManualLocation(false);
+                    setManualLocationQuery("");
+                    setLocationSuggestions([]);
+                  }}
+                  className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700 transition-colors"
+                >
+                  Use GPS
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={manualLocationQuery}
+                onChange={(e) => handleManualLocationSearch(e.target.value)}
+                className="w-full p-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Search for your location (e.g., KIIT Square, Master Canteen)"
+              />
+              {locationSuggestions.length > 0 && (
+                <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-auto">
+                  {locationSuggestions.map((suggestion, index) => (
+                    <li
+                      key={index}
+                      className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      onClick={() => selectManualLocation(suggestion)}
+                    >
+                      <div className="font-medium text-gray-800">{suggestion.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {suggestion.coordinates.type.replace('_', ' ')} • {suggestion.routes.length} routes
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="text-sm text-blue-700 mt-2">
+              Type to search for bus stops, landmarks, or areas
+            </div>
+          </div>
+        ) : !userLocation ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-gray-800">Location Access Denied</span>
+              <button
+                onClick={switchToManualLocation}
+                className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700 transition-colors"
+              >
+                Enter Manually
+              </button>
+            </div>
+            <div className="text-sm text-gray-600">
+              Please enter your location manually to see nearby buses
             </div>
           </div>
         ) : null}
