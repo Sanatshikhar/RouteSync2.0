@@ -1,24 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useTickets } from '../../hooks/useTickets';
+import { useAuth } from '../../contexts/AuthContext';
+import pb from '../../services/pocketbase';
 
-const SEAT_PRICES = [1795, 825];
-const LOWER_BERTH = [
-  [null, 1795, 1795],
-  [null, 825, 825],
-  [1795, 1795, 1795],
-  [825, 825, 825],
-];
-const UPPER_BERTH = [
-  [null, 1795, 1795],
-  [null, 1795, 1795],
-  [1795, 1795, 1795],
-];
-const RESERVED = [
-  { berth: 'lower', row: 0, col: 1 },
-  { berth: 'lower', row: 1, col: 2 },
-  { berth: 'upper', row: 0, col: 2 },
-];
+const SelectSeat = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { createTicket } = useTickets();
+  const [selectedSeat, setSelectedSeat] = useState(null);
+  const [occupiedSeats, setOccupiedSeats] = useState([]);
+  const { bus, from, to, date } = location.state || {};
 
-const ticket = () => {
+  useEffect(() => {
+    const fetchOccupiedSeats = async () => {
+      try {
+        const records = await pb.collection('tickets').getFullList({
+          filter: `bus_id="${bus.id}" && status="confirmed"`,
+        });
+        setOccupiedSeats(records.map(ticket => ticket.seat_number));
+      } catch (err) {
+        console.error('Error fetching occupied seats:', err);
+      }
+    };
+    fetchOccupiedSeats();
+  }, [bus.id]);
+
   const [selectedPrice, setSelectedPrice] = useState('All');
   const [selectedSeats, setSelectedSeats] = useState([]);
 
@@ -148,4 +156,4 @@ const ticket = () => {
   );
 };
 
-export default ticket;
+export default SelectSeat;

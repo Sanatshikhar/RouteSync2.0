@@ -1,186 +1,107 @@
-import React, { useState } from 'react';
-import useBookingTour from '../../hooks/useBookingTour';
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-
-const BUS_LIST = [
-	{
-		id: 1,
-		number: 'KI-58-B-0271',
-		type: 'Ordinary',
-		fare: 15,
-		startTime: '09:10 am',
-		endTime: '09:20 am',
-		duration: '10 min',
-		distance: '4 Km',
-		crowd: 25,
-		crowdColor: 'green',
-		crowdLabel: 'Crowd status',
-		status: 'Delayed: 4 min',
-		statusColor: 'red',
-		onTime: false,
-		service: 'Ordinary',
-	},
-	{
-		id: 2,
-		number: 'KI-07-D-0506',
-		type: 'City Circular',
-		fare: 15,
-		startTime: '09:25 am',
-		endTime: '09:35 am',
-		duration: '10 min',
-		distance: '4 Km',
-		crowd: 75,
-		crowdColor: 'orange',
-		crowdLabel: 'Crowd status',
-		status: 'On time',
-		statusColor: 'green',
-		onTime: true,
-		service: 'City Circular',
-	},
-	{
-		id: 3,
-		number: 'KI-08-Q-0103',
-		type: 'Ordinary',
-		fare: 15,
-		startTime: '09:35 am',
-		endTime: '09:45 am',
-		duration: '10 min',
-		distance: '4 Km',
-		crowd: 50,
-		crowdColor: 'yellow',
-		crowdLabel: 'Crowd status',
-		status: 'Delayed: 4 min',
-		statusColor: 'red',
-		onTime: false,
-		service: 'Ordinary',
-	},
-	{
-		id: 4,
-		number: 'KI-12-D-2354',
-		type: 'KSRTC',
-		fare: 17,
-		startTime: '',
-		endTime: '',
-		duration: '',
-		distance: '',
-		crowd: null,
-		crowdColor: '',
-		crowdLabel: '',
-		status: '',
-		statusColor: '',
-		onTime: null,
-		service: 'KSRTC',
-	},
-];
-
-const SERVICE_TYPES = ['Ordinary', 'KSRTC', 'Fast passenger', 'Intercity'];
+import { useAuth } from '../../contexts/AuthContext';
+import useBookingTour from '../../hooks/useBookingTour';
+import { useBuses } from '../../hooks/useBuses';
 
 const ListBus = () => {
-	const [selectedTab, setSelectedTab] = useState('All buses');
-	const [showModal, setShowModal] = useState(false);
-	const [selectedService, setSelectedService] = useState('Ordinary');
-	const [selectedBus, setSelectedBus] = useState(null);
-	const { buses, loading, error } = useBookingTour();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { startBookingTour } = useBookingTour();
+  const { from, to, date, buses = [] } = location.state || {};
 
-	const handleCardClick = (bus) => {
-		setSelectedBus(bus);
-		setShowModal(true);
-		setSelectedService(bus.Category || 'Ordinary');
-	};
+  const handleSelectBus = (bus) => {
+    if (!user) {
+      alert('Please login to book tickets');
+      navigate('/auth');
+      return;
+    }
 
-	const handleServiceSelect = (service) => {
-		setSelectedService(service);
-	};
+    startBookingTour();
+    navigate('/selectSeat', {
+      state: {
+        bus,
+        from,
+        to,
+        date
+      }
+    });
+  };
 
-	const handleModalClose = () => {
-		setShowModal(false);
-		setSelectedBus(null);
-	};
+  if (!buses || buses.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <h2 className="text-2xl font-semibold mb-4">No buses found</h2>
+        <p className="text-gray-600 mb-4">Sorry, we couldn't find any buses for your selected route.</p>
+        <button
+          onClick={() => navigate('/searchBus')}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+        >
+          Search Again
+        </button>
+      </div>
+    );
+  }
 
-		return (
-			<div className="min-h-screen bg-[#F6F8FB] flex flex-col">
-				{/* Header */}
-				<div className="bg-blue-600 text-white px-4 py-4 flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<button className="text-white text-2xl font-bold">&#8592;</button>
-						<div>
-							<div className="font-semibold text-lg">Select bus</div>
-							<div className="text-xs opacity-80">Bus List</div>
-						</div>
-					</div>
-					<button className="text-white text-xl">&#9881;</button>
-				</div>
+  return (
+    <div className="min-h-screen bg-gray-100 p-4">
+      <h2 className="text-2xl font-semibold mb-4">Available Buses</h2>
+      <div className="mb-4">
+        <p className="text-gray-600">
+          {from} → {to} | {new Date(date).toLocaleDateString()}
+        </p>
+      </div>
 
-				{/* Sort Tabs */}
-				<div className="bg-white px-4 py-2 flex gap-2 border-b">
-					{['All buses', '07am - 12pm', '12pm - 06pm'].map((tab) => (
-						<button
-							key={tab}
-							className={`px-3 py-1 rounded-full text-sm font-medium ${selectedTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-							onClick={() => setSelectedTab(tab)}
-						>
-							{tab}
-						</button>
-					))}
-				</div>
+      <div className="space-y-4">
+        {buses.map((bus) => (
+          <div
+            key={bus.id}
+            className="bg-white rounded-lg shadow p-4 hover:shadow-lg transition-shadow"
+          >
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-semibold">{bus.bus_number}</h3>
+              <span className="text-blue-600 font-semibold">
+                ₹{bus.fare_amount}
+              </span>
+            </div>
 
-				{/* Bus List */}
-				<div className="flex-1 overflow-y-auto px-2 py-2">
-					{loading && <div>Loading buses...</div>}
-					{error && <div className="text-red-500">Error loading buses</div>}
-					{buses.map((bus) => (
-						<div
-							key={bus.id}
-							className="bg-white rounded-xl shadow-sm mb-3 p-4 cursor-pointer hover:shadow-md transition border"
-							onClick={() => handleCardClick(bus)}
-						>
-							<div className="flex justify-between items-center mb-1">
-								<div className="font-semibold text-base">{bus.bus_number}</div>
-								<div className="font-bold text-gray-800">₹ {bus.fare_amount || '-'}</div>
-							</div>
-							<div className="text-xs text-gray-500 mb-1">{bus.Category}</div>
-							<div className="flex items-center justify-between mb-1">
-								<div className="text-sm font-medium">Capacity: {bus.current_capacity}/{bus.max_capacity}</div>
-								<div className={`text-xs font-semibold ${bus.capacity_status === 'low' ? 'text-green-600' : bus.capacity_status === 'medium' ? 'text-yellow-500' : 'text-red-500'}`}>{bus.capacity_status}</div>
-								<div className="text-xs text-gray-700">Status: {bus.status}</div>
-							</div>
-						</div>
-					))}
-				</div>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-gray-600">Category</p>
+                <p className="font-medium">{bus.category}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Service Type</p>
+                <p className="font-medium">{bus.service_type}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Available Seats</p>
+                <p className="font-medium">
+                  {bus.max_capacity - bus.current_capacity}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Status</p>
+                <p className={`font-medium ${
+                  bus.status === 'On Time' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {bus.status}
+                </p>
+              </div>
+            </div>
 
-				{/* Modal (Bottom Sheet) */}
-
-				{showModal && (
-					<div className="fixed inset-0 bg-black bg-opacity-30 flex items-end z-50" onClick={handleModalClose}>
-						<div
-							className="w-full bg-white rounded-t-2xl p-6 shadow-lg"
-							style={{ maxWidth: 500, margin: '0 auto' }}
-							onClick={e => e.stopPropagation()}
-						>
-							<div className="flex justify-between items-center mb-4">
-								<div className="font-semibold text-lg">Bus Service type</div>
-								<button className="text-gray-500 text-2xl" onClick={handleModalClose}>&#10005;</button>
-							</div>
-							<div className="flex flex-wrap gap-2 mb-6">
-								{SERVICE_TYPES.map((type) => (
-									<button
-										key={type}
-										className={`px-4 py-2 rounded-full border text-sm font-medium ${selectedService === type ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-100 text-gray-700 border-gray-200'}`}
-										onClick={() => handleServiceSelect(type)}
-									>
-										{type}
-									</button>
-								))}
-							</div>
-							<div className="flex justify-between gap-4">
-								<button className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold" onClick={handleModalClose}>cancel</button>
-								<button className="flex-1 py-2 rounded-lg bg-blue-600 text-white font-semibold" onClick={handleModalClose}>Save</button>
-							</div>
-						</div>
-					</div>
-				)}
-			</div>
-		);
-	}
+            <button
+              onClick={() => handleSelectBus(bus)}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Select Seats
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default ListBus;

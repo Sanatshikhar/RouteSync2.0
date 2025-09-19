@@ -1,19 +1,76 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
+import { useBuses } from '../../hooks/useBuses';
+import pb from '../../services/pocketbase';
 
 const SearchBus = () => {
   const navigate = useNavigate();
+  const { buses, loading, error, searchBuses } = useBuses();
   const [tripType, setTripType] = useState("oneway");
-  const [from, setFrom] = useState("Kochi");
-  const [to, setTo] = useState("Chennai");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [date, setDate] = useState(new Date());
-  const [recentSearches, setRecentSearches] = useState([
-    { id: 1, route: "Kochi → Chennai" },
-    { id: 2, route: "Thrissur → Aluva" },
-  ]);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [availableRoutes, setAvailableRoutes] = useState([]);
+
+  useEffect(() => {
+    // Load available routes for autocomplete
+    const loadRoutes = async () => {
+      try {
+        const routes = await pb.collection('routes').getFullList();
+        const uniqueLocations = new Set();
+        routes.forEach(route => {
+          uniqueLocations.add(route.start_point);
+          uniqueLocations.add(route.end_point);
+        });
+        setAvailableRoutes(Array.from(uniqueLocations));
+      } catch (err) {
+        console.error('Error loading routes:', err);
+      }
+    };
+    loadRoutes();
+
+    // Load recent searches from local storage
+    const savedSearches = localStorage.getItem('recentSearches');
+    if (savedSearches) {
+      setRecentSearches(JSON.parse(savedSearches));
+    }
+  }, []);
+
+  const handleSearch = async () => {
+    if (!from || !to) {
+      alert('Please select both source and destination');
+      return;
+    }
+
+    saveSearch();
+    await searchBuses(from, to);
+    navigate('/listBus', { 
+      state: { 
+        from, 
+        to, 
+        date, 
+        buses,
+        tripType 
+      } 
+    });
+  };
+
+  const saveSearch = () => {
+    const newSearch = {
+      id: Date.now(),
+      route: `${from} → ${to}`,
+      date: date.toISOString()
+    };
+    const updatedSearches = [newSearch, ...recentSearches].slice(0, 5);
+    setRecentSearches(updatedSearches);
+    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
+  };
 
   const deleteSearch = (id) => {
-    setRecentSearches(recentSearches.filter((item) => item.id !== id));
+    const updatedSearches = recentSearches.filter((item) => item.id !== id);
+    setRecentSearches(updatedSearches);
+    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
   };
 
   const formatDate = (date) => {
@@ -34,18 +91,33 @@ const SearchBus = () => {
     setDate(tomorrow);
   };
 
-  const handleSearch = () => {
-    // Save to recent searches
-    const newSearch = {
-      id: Date.now(),
-      route: `${from} → ${to}`
-    };
-    setRecentSearches(prev => [newSearch, ...prev].slice(0, 5)); // Keep only last 5 searches
-    
-    // Navigate to list-bus with search params
-    navigate('/list-bus', { 
-      state: { from, to, date, tripType } 
-    });
+  const [fromSuggestions, setFromSuggestions] = useState([]);
+  const [toSuggestions, setToSuggestions] = useState([]);
+
+  const handleFromChange = (e) => {
+    const value = e.target.value;
+    setFrom(value);
+    if (value.length > 0) {
+      const matches = availableRoutes.filter(route => 
+        route.toLowerCase().includes(value.toLowerCase())
+      );
+      setFromSuggestions(matches);
+    } else {
+      setFromSuggestions([]);
+    }
+  };
+
+  const handleToChange = (e) => {
+    const value = e.target.value;
+    setTo(value);
+    if (value.length > 0) {
+      const matches = availableRoutes.filter(route => 
+        route.toLowerCase().includes(value.toLowerCase())
+      );
+      setToSuggestions(matches);
+    } else {
+      setToSuggestions([]);
+    }
   };
 
   return (
@@ -93,26 +165,58 @@ const SearchBus = () => {
 
         {/* From - To */}
         <div className="bg-white rounded-lg p-4 shadow-sm space-y-4 mb-4">
-          <div>
+          <div className="relative">
             <label className="text-gray-500 text-sm font-medium mb-1 block">From</label>
             <input
               type="text"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
+              onChange={handleFromChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter source city"
             />
+            {fromSuggestions.length > 0 && (
+              <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-auto">
+                {fromSuggestions.map((suggestion, index) => (
+                  <li
+                    key={index}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setFrom(suggestion);
+                      setFromSuggestions([]);
+                    }}
+                  >
+                    {suggestion}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          <div>
+          <div className="relative">
             <label className="text-gray-500 text-sm font-medium mb-1 block">To</label>
             <input
               type="text"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
+              onChange={handleToChange}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter destination city"
             />
+            {toSuggestions.length > 0 && (
+              <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-auto">
+                {toSuggestions.map((suggestion, index) => (
+                  <li
+                    key={index}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setTo(suggestion);
+                      setToSuggestions([]);
+                    }}
+                  >
+                    {suggestion}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
