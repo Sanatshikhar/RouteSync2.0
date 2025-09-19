@@ -58,11 +58,11 @@ const AuthPage = () => {
       });
 
       const res = await register({
-        email: formData.email.trim(),
+        email: formData.email,
         password: formData.password,
-        confirmPassword: formData.confirmPassword,
-        name: formData.name.trim(),
-        phone: formData.phone ? formData.phone.trim() : ''
+        confirmPassword: formData.password,
+        name: formData.name,
+        phone: formData.phone
       });
       
       if (res && res.id) {
