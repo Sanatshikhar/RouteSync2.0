@@ -26,7 +26,7 @@ function App() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/homepage" element={<HomePage />} />
           <Route path="/search-bus" element={<SearchBus />} />
-          <Route path="/list-bus" element={<ListBus />} />
+          <Route path="/listbus" element={<ListBus />} />
           <Route path="/live-tracking" element={<LiveTracking />} />
           <Route path="/boarding" element={<Boarding />} />
           <Route path="/payment" element={<PaymentSystem />} />

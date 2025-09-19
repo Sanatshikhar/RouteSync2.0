@@ -1,73 +1,38 @@
 import { useState, useEffect } from 'react';
-import pb from '../services/pocketbase';
+import axios from 'axios';
 
-export const useBuses = () => {
+export function useBuses() {
   const [buses, setBuses] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchBuses = async () => {
-    setLoading(true);
-    try {
-      const records = await pb.collection('buses').getFullList({
-        sort: '-created',
-        expand: 'route_id',
-      });
-      setBuses(records);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchBuses = async (startPoint, endPoint) => {
-    setLoading(true);
-    try {
-      const routes = await pb.collection('routes').getFullList({
-        filter: `start_point~"${startPoint}" && end_point~"${endPoint}"`,
-      });
-      
-      const routeIds = routes.map(route => route.id);
-      if (routeIds.length === 0) {
-        setBuses([]);
-        return;
-      }
-
-      const busRecords = await pb.collection('buses').getFullList({
-        filter: routeIds.map(id => `route_id="${id}"`).join('||'),
-        expand: 'route_id',
-      });
-      
-      setBuses(busRecords);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getBusById = async (id) => {
-    try {
-      return await pb.collection('buses').getOne(id, {
-        expand: 'route_id',
-      });
-    } catch (err) {
-      setError(err.message);
-      return null;
-    }
-  };
-
   useEffect(() => {
+    async function fetchBuses() {
+      setLoading(true);
+      try {
+        // Replace with your actual API endpoint or PocketBase logic
+        const response = await axios.get('/api/buses');
+        setBuses(response.data);
+        setError(null);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    }
     fetchBuses();
   }, []);
 
-  return {
-    buses,
-    loading,
-    error,
-    fetchBuses,
-    searchBuses,
-    getBusById,
-  };
-};
+  // Optionally, add a searchBuses function for filtering
+  function searchBuses(from, to, date) {
+    return buses.filter(bus => {
+      return (
+        (!from || bus.from === from) &&
+        (!to || bus.to === to) &&
+        (!date || bus.date === date)
+      );
+    });
+  }
+
+  return { buses, loading, error, searchBuses };
+}
