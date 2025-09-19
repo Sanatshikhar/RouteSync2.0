@@ -15,13 +15,26 @@ const HomePage = () => {
   const [nearbyRoutes, setNearbyRoutes] = useState([]); // Store nearby routes
   const [loadingNearby, setLoadingNearby] = useState(true); // Loading state for nearby routes
   const [searchValue, setSearchValue] = useState(""); // For location search
+  const [locationName, setLocationName] = useState('Fetching...');
 
-  // Redirect if not logged in
+  // Fetch user's current location (city name)
   useEffect(() => {
-    if (!user) {
-      navigate("/auth");
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        // Use a free reverse geocoding API (e.g. OpenStreetMap Nominatim)
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await response.json();
+          setLocationName(data.address?.city || data.address?.town || data.address?.village || data.address?.state || 'Unknown');
+        } catch {
+          setLocationName('Unknown');
+        }
+      }, () => setLocationName('Unknown'));
+    } else {
+      setLocationName('Unknown');
     }
-  }, [user, navigate]);
+  }, []);
 
   // Fetch 3 nearby routes from PocketBase on mount
   useEffect(() => {
@@ -112,7 +125,7 @@ const HomePage = () => {
               >
                 <path d="M10 2a5 5 0 015 5v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2V7a5 5 0 015-5zm0 2a3 3 0 00-3 3v2h6V7a3 3 0 00-3-3z" />
               </svg>
-              <span>Kochi</span>
+              <span>{locationName}</span>
             </div>
             <span>29°C</span>
             {/* Mobile: menu button */}

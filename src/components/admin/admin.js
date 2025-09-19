@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import PocketBase from 'pocketbase';
 
 const tabs = [
 	{ key: 'buses', label: 'Buses' },
@@ -8,11 +9,47 @@ const tabs = [
 	{ key: 'drivers', label: 'Driver Verification' }
 ];
 
+const pb = new PocketBase('http://127.0.0.1:8090');
+
 const AdminDashboard = () => {
 	const [activeTab, setActiveTab] = useState('buses');
 	const [search, setSearch] = useState('');
+	const [buses, setBuses] = useState([]);
+	const [loadingBuses, setLoadingBuses] = useState(false);
+	const [busError, setBusError] = useState(null);
+	const [routes, setRoutes] = useState([]);
+	const [loadingRoutes, setLoadingRoutes] = useState(false);
+	const [routeError, setRouteError] = useState(null);
 
-	// Dummy filtered results (replace with real data logic)
+	useEffect(() => {
+		if (activeTab === 'buses') {
+			setLoadingBuses(true);
+			pb.collection('buses').getFullList()
+				.then(data => {
+					setBuses(data);
+					setBusError(null);
+				})
+				.catch(err => {
+					setBusError('Failed to fetch buses');
+					setBuses([]);
+				})
+				.finally(() => setLoadingBuses(false));
+		}
+		if (activeTab === 'routes') {
+			setLoadingRoutes(true);
+			pb.collection('routes').getFullList()
+				.then(data => {
+					setRoutes(data);
+					setRouteError(null);
+				})
+				.catch(err => {
+					setRouteError('Failed to fetch routes');
+					setRoutes([]);
+				})
+				.finally(() => setLoadingRoutes(false));
+		}
+	}, [activeTab]);
+
 	const getSearchPlaceholder = () => {
 		if (activeTab === 'buses') return 'Search buses...';
 		if (activeTab === 'routes') return 'Search routes...';
@@ -63,22 +100,57 @@ const AdminDashboard = () => {
 
 			{/* Tab Content */}
 			<div className="flex-1 overflow-y-auto bg-white p-4">
-				{activeTab === 'buses' && (
-					<div>
-						<h2 className="font-semibold text-lg mb-2">Manage Buses</h2>
-						{/* List, add, edit, delete buses */}
-						<div className="bg-blue-50 p-4 rounded mb-4">Bus list and controls go here.</div>
-						<button className="bg-blue-600 text-white px-4 py-2 rounded">Add New Bus</button>
-					</div>
-				)}
-				{activeTab === 'routes' && (
-					<div>
-						<h2 className="font-semibold text-lg mb-2">Manage Routes</h2>
-						{/* List, add, edit, delete routes */}
-						<div className="bg-blue-50 p-4 rounded mb-4">Route list and controls go here.</div>
-						<button className="bg-blue-600 text-white px-4 py-2 rounded">Add New Route</button>
-					</div>
-				)}
+						{activeTab === 'buses' && (
+							<div>
+								<h2 className="font-semibold text-lg mb-2">Manage Buses</h2>
+								{/* List buses from PocketBase */}
+								<div className="bg-blue-50 p-4 rounded mb-4">
+									{loadingBuses ? (
+										<div>Loading buses...</div>
+									) : busError ? (
+										<div className="text-red-600">{busError}</div>
+									) : buses.length === 0 ? (
+										<div>No buses found.</div>
+									) : (
+										<ul className="divide-y">
+											{buses.filter(bus => bus.bus_number?.toLowerCase().includes(search.toLowerCase())).map(bus => (
+												<li key={bus.id} className="py-2 flex justify-between items-center">
+													<span className="font-medium">{bus.bus_number}</span>
+													<span className="text-xs text-gray-500">{bus.category}</span>
+													<span className="text-xs text-gray-500">{bus.status}</span>
+												</li>
+											))}
+										</ul>
+									)}
+								</div>
+								<button className="bg-blue-600 text-white px-4 py-2 rounded">Add New Bus</button>
+							</div>
+						)}
+						{activeTab === 'routes' && (
+							<div>
+								<h2 className="font-semibold text-lg mb-2">Manage Routes</h2>
+								{/* List routes from PocketBase */}
+								<div className="bg-blue-50 p-4 rounded mb-4">
+									{loadingRoutes ? (
+										<div>Loading routes...</div>
+									) : routeError ? (
+										<div className="text-red-600">{routeError}</div>
+									) : routes.length === 0 ? (
+										<div>No routes found.</div>
+									) : (
+										<ul className="divide-y">
+											{routes.filter(route => route.name?.toLowerCase().includes(search.toLowerCase())).map(route => (
+												<li key={route.id} className="py-2 flex justify-between items-center">
+													<span className="font-medium">{route.name}</span>
+													<span className="text-xs text-gray-500">{route.start_point} → {route.end_point}</span>
+												</li>
+											))}
+										</ul>
+									)}
+								</div>
+								<button className="bg-blue-600 text-white px-4 py-2 rounded">Add New Route</button>
+							</div>
+						)}
 				{activeTab === 'fleets' && (
 					<div>
 						<h2 className="font-semibold text-lg mb-2">Bus & Route Allocation</h2>
