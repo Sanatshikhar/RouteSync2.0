@@ -18,6 +18,12 @@
 .env.test.local
 .env.production.local
 
+# database files
+pb_data/
+*.db
+*.db-shm
+*.db-wal
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

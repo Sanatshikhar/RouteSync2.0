@@ -10,6 +10,7 @@ import HomePage from "./components/pages/homepage";
 import ListBus from "./components/pages/listBus";
 import SearchBus from "./components/pages/searchBus";
 import LiveTracking from "./components/pages/livet_track";
+import RoutePlannerPage from "./components/pages/routePlanner";
 import PaymentSystem from "./components/pages/paymentSystem";
 import Ticket from "./components/pages/ticket";
 import TicketList from "./components/pages/ticketList";
@@ -34,6 +35,7 @@ function App() {
           <Route path="/search-bus" element={<SearchBus />} />
           <Route path="/listbus" element={<ListBus />} />
           <Route path="/live-tracking" element={<LiveTracking />} />
+          <Route path="/route-planner" element={<RoutePlannerPage />} />
           <Route path="/bus-status" element={<LiveTracking />} />
           <Route path="/bus-status-mobile" element={<LiveTracking />} />
           <Route path="/boarding" element={<Boarding />} />
