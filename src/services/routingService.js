@@ -7,6 +7,13 @@ class RoutingService {
     // You can get a free API key from https://openrouteservice.org/
     this.apiKey = process.env.REACT_APP_OPENROUTE_API_KEY || 'YOUR_FREE_API_KEY_HERE';
     
+    // Log API key status (without exposing the key)
+    if (this.apiKey && this.apiKey !== 'YOUR_FREE_API_KEY_HERE') {
+      console.log('✅ OpenRouteService API key loaded');
+    } else {
+      console.log('⚠️ OpenRouteService API key not found, using OSRM fallback');
+    }
+    
     // Track online/offline status
     this.isOnline = navigator.onLine;
     this.lastRouteSource = 'unknown';
@@ -321,51 +328,300 @@ class RoutingService {
     return parts.length >= 2 ? parts[parts.length-2].trim() : '';
   }
 
+  // Format duration in seconds to human readable format
+  formatDuration(seconds) {
+    if (!seconds || seconds < 0) return '0 min';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes} min`;
+  }
+
+  // Format distance in meters to human readable format
+  formatDistance(meters) {
+    if (!meters || meters < 0) return '0 km';
+    
+    if (meters < 1000) {
+      return `${Math.round(meters)} m`;
+    }
+    
+    const km = meters / 1000;
+    return `${km.toFixed(1)} km`;
+  }
+
+  // Estimate Indian bus fare based on distance
+  estimateIndianBusFare(distanceInMeters) {
+    if (!distanceInMeters || distanceInMeters < 0) return 5;
+    
+    const km = distanceInMeters / 1000;
+    
+    // Indian bus fare calculation (approximate)
+    // Base fare: ₹5 for first 2km
+    // Additional: ₹2 per km
+    const baseFare = 5;
+    const additionalKm = Math.max(0, km - 2);
+    const additionalFare = Math.ceil(additionalKm) * 2;
+    
+    return Math.max(baseFare, baseFare + additionalFare);
+  }
+
+  // Get current routing status
+  getRoutingStatus() {
+    return {
+      isOnline: this.isOnline,
+      statusText: this.isOnline ? 'Online' : 'Offline',
+      statusColor: this.isOnline ? 'green' : 'orange',
+      lastRouteSource: this.lastRouteSource,
+      apiKeyAvailable: !!(this.apiKey && this.apiKey !== 'YOUR_FREE_API_KEY_HERE')
+    };
+  }
+
+  // Update the last route source
+  updateRouteSource(source) {
+    this.lastRouteSource = source;
+  }
+
+  // Generate smart fallback route with realistic data
+  generateSmartFallbackRoute(start, end) {
+    try {
+      console.log('Generating smart fallback for:', start, 'to:', end);
+      
+      // Calculate straight-line distance
+      const distance = this.calculateDistance(start.lat, start.lng, end.lat, end.lng);
+      console.log('Straight-line distance:', distance.toFixed(2), 'km');
+      
+      // Check if this is a reasonable route (within Odisha/nearby areas)
+      if (distance > 100) {
+        console.log('⚠️ Very long distance route detected, using city-level estimate');
+        // For very long routes, provide a more conservative estimate
+        return {
+          coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
+          distance: Math.min(distance * 1000, 50000), // Cap at 50km for city routes
+          duration: Math.min(Math.round(distance * 60), 3600), // Cap at 1 hour
+          instructions: [{ instruction: `Long distance route to ${end.name || 'destination'}`, distance: distance * 1000 }],
+          source: 'long_distance_estimate'
+        };
+      }
+      
+      // For reasonable distances, use smart calculation
+      let roadDistanceMultiplier = 1.4; // Roads are typically 40% longer than straight line
+      
+      // Adjust multiplier based on distance and terrain
+      if (distance < 2) roadDistanceMultiplier = 1.6; // City routes with more turns
+      else if (distance < 5) roadDistanceMultiplier = 1.5; // Suburban routes
+      else if (distance > 20) roadDistanceMultiplier = 1.25; // Highway routes are more direct
+      else if (distance > 50) roadDistanceMultiplier = 1.2; // Long highway routes
+      
+      const roadDistance = distance * roadDistanceMultiplier * 1000; // Convert to meters
+      
+      // Calculate realistic travel time based on Indian city conditions
+      let avgSpeed = 25; // km/h base speed for city driving
+      
+      // Adjust speed based on distance (longer routes often have highway portions)
+      if (distance > 20) avgSpeed = 40; // Highway portions
+      else if (distance > 10) avgSpeed = 30; // Mixed city/highway
+      else if (distance < 5) avgSpeed = 20; // Dense city traffic
+      
+      // Apply time-of-day traffic factors
+      const currentHour = new Date().getHours();
+      let trafficFactor = 1;
+      if (currentHour >= 7 && currentHour <= 10) trafficFactor = 0.6; // Morning rush
+      else if (currentHour >= 17 && currentHour <= 20) trafficFactor = 0.7; // Evening rush
+      else if (currentHour >= 22 || currentHour <= 5) trafficFactor = 1.2; // Night time
+      
+      const adjustedSpeed = avgSpeed * trafficFactor;
+      const travelTimeHours = (roadDistance / 1000) / adjustedSpeed;
+      const travelTimeSeconds = Math.round(travelTimeHours * 3600);
+      
+      // Generate realistic route coordinates (simple interpolation with some curves)
+      const coordinates = this.generateRealisticRouteCoordinates(start, end);
+      
+      console.log(`Smart fallback route: ${(roadDistance/1000).toFixed(1)}km, ${Math.round(travelTimeSeconds/60)}min (${adjustedSpeed.toFixed(1)}km/h avg speed)`);
+      
+      return {
+        coordinates: coordinates,
+        distance: roadDistance, // in meters
+        duration: travelTimeSeconds, // in seconds
+        instructions: [
+          { instruction: `Head towards ${end.name || 'destination'}`, distance: roadDistance }
+        ],
+        source: 'smart_fallback'
+      };
+    } catch (error) {
+      console.error('Error generating smart fallback route:', error);
+      
+      // Ultimate fallback with reasonable defaults for city routes
+      return {
+        coordinates: [[start.lat, start.lng], [end.lat, end.lng]],
+        distance: 8000, // 8km default (reasonable city route)
+        duration: 1200, // 20 minutes default
+        instructions: [{ instruction: 'Route to destination', distance: 8000 }],
+        source: 'default_fallback'
+      };
+    }
+  }
+
+  // Generate realistic route coordinates with curves
+  generateRealisticRouteCoordinates(start, end) {
+    const coordinates = [];
+    const distance = this.calculateDistance(start.lat, start.lng, end.lat, end.lng);
+    const steps = Math.max(20, Math.min(50, Math.floor(distance * 2))); // More points for longer routes
+    
+    // Calculate bearing for perpendicular curves
+    const bearing = Math.atan2(end.lng - start.lng, end.lat - start.lat);
+    const perpBearing = bearing + Math.PI / 2;
+    
+    for (let i = 0; i <= steps; i++) {
+      const ratio = i / steps;
+      
+      // Linear interpolation
+      let lat = start.lat + (end.lat - start.lat) * ratio;
+      let lng = start.lng + (end.lng - start.lng) * ratio;
+      
+      // Add realistic road curves that follow typical road patterns
+      if (i > 0 && i < steps) {
+        // Create S-curves and gentle bends typical of roads
+        const curveIntensity = Math.min(distance / 50, 0.01); // Scale with distance
+        const mainCurve = Math.sin(ratio * Math.PI * 3) * curveIntensity * Math.sin(ratio * Math.PI);
+        const microVariation = (Math.sin(ratio * Math.PI * 20) * 0.0005) * Math.random();
+        
+        // Apply curves perpendicular to the main direction
+        lat += Math.cos(perpBearing) * (mainCurve + microVariation);
+        lng += Math.sin(perpBearing) * (mainCurve + microVariation);
+        
+        // Add small random variations to simulate road imperfections
+        lat += (Math.random() - 0.5) * 0.0002;
+        lng += (Math.random() - 0.5) * 0.0002;
+      }
+      
+      coordinates.push([lat, lng]);
+    }
+    
+    return coordinates;
+  }
+
+  // Calculate distance between two points (Haversine formula)
+  calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  // Convert degrees to radians
+  toRadians(degrees) {
+    return degrees * (Math.PI / 180);
+  }
+
   // Smart route calculation - tries online first, falls back to offline
   async getRoute(start, end, profile = 'driving-car') {
     try {
       console.log('Calculating route from', start, 'to', end);
       
-      // First try online routing with OSRM (free, no API key needed)
+      // Normalize coordinates to ensure they have lat/lng properties
+      const normalizedStart = this.normalizeCoordinates(start);
+      const normalizedEnd = this.normalizeCoordinates(end);
+      
+      console.log('Normalized coordinates:', { 
+        start: normalizedStart, 
+        end: normalizedEnd,
+        startValid: !!(normalizedStart?.lat && normalizedStart?.lng),
+        endValid: !!(normalizedEnd?.lat && normalizedEnd?.lng)
+      });
+      
+      if (!normalizedStart || !normalizedEnd) {
+        console.error('Failed to normalize coordinates:', { original_start: start, original_end: end });
+        throw new Error('Invalid coordinates provided');
+      }
+      
+      // Try online routing with multiple services
       if (this.isOnline) {
         try {
-          const onlineRoute = await this.getOnlineRoute(start, end);
+          // First try OpenRouteService (if API key available)
+          const onlineRoute = await this.getOnlineRoute(normalizedStart, normalizedEnd);
           if (onlineRoute) {
-            console.log('Using online route');
-            this.updateRouteSource('online');
-            return { ...onlineRoute, source: 'online' };
+            console.log('✅ Using OpenRouteService (accurate routing)');
+            this.updateRouteSource('openrouteservice');
+            return { ...onlineRoute, source: 'openrouteservice' };
           }
-        } catch (onlineError) {
-          console.log('Online routing failed, using offline:', onlineError.message);
+        } catch (openRouteError) {
+          console.log('❌ OpenRouteService failed, trying OSRM:', openRouteError.message);
+          
+          try {
+            const osrmRoute = await this.getOSRMRoute(normalizedStart, normalizedEnd);
+            if (osrmRoute) {
+              console.log('✅ Using OSRM (free road routing)');
+              this.updateRouteSource('osrm');
+              return { ...osrmRoute, source: 'osrm' };
+            }
+          } catch (osrmError) {
+            console.log('❌ All online services failed, using smart fallback:', osrmError.message);
+            
+            // Use smart fallback with realistic data
+            const fallbackRoute = this.generateSmartFallbackRoute(normalizedStart, normalizedEnd);
+            this.updateRouteSource('smart_fallback');
+            return { ...fallbackRoute, source: 'smart_fallback' };
+          }
         }
+      } else {
+        console.log('📱 Offline mode, using smart fallback');
+        const fallbackRoute = this.generateSmartFallbackRoute(normalizedStart, normalizedEnd);
+        this.updateRouteSource('offline_smart');
+        return { ...fallbackRoute, source: 'offline_smart' };
       }
-
-      // Fallback to offline routing
-      console.log('Using offline route calculation');
-      
-      // Check if we have a pre-defined route
-      const predefinedRoute = this.findPredefinedRoute(start, end);
-      if (predefinedRoute) {
-        this.updateRouteSource('offline_predefined');
-        return { ...predefinedRoute, source: 'offline_predefined' };
-      }
-
-      // Generate route using realistic interpolation
-      this.updateRouteSource('offline_generated');
-      return { ...this.generateOfflineRoute(start, end), source: 'offline_generated' };
     } catch (error) {
       console.error('Error calculating route:', error);
       throw error;
     }
   }
 
-  // Try to get route from online services
-  async getOnlineRoute(start, end) {
+  // Normalize coordinates to ensure consistent format
+  normalizeCoordinates(coords) {
+    if (!coords) return null;
+    
+    // If it's an array [lat, lng]
+    if (Array.isArray(coords) && coords.length >= 2) {
+      return {
+        lat: parseFloat(coords[0]),
+        lng: parseFloat(coords[1])
+      };
+    }
+    
+    // If it's an object with lat/lng properties
+    if (coords.lat !== undefined && coords.lng !== undefined) {
+      return {
+        lat: parseFloat(coords.lat),
+        lng: parseFloat(coords.lng)
+      };
+    }
+    
+    // If it's an object with latitude/longitude properties
+    if (coords.latitude !== undefined && coords.longitude !== undefined) {
+      return {
+        lat: parseFloat(coords.latitude),
+        lng: parseFloat(coords.longitude)
+      };
+    }
+    
+    console.error('Invalid coordinate format:', coords);
+    return null;
+  }
+
+  // Get route from OSRM (free, no API key required)
+  async getOSRMRoute(start, end) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
 
     try {
-      // Use OSRM (free, no API key needed)
+      // Use public OSRM server
       const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
       
       const response = await fetch(url, {
@@ -378,13 +634,13 @@ class RoutingService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`OSRM HTTP ${response.status}`);
       }
 
       const data = await response.json();
       
-      if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
-        throw new Error('No route found');
+      if (!data.routes || data.routes.length === 0) {
+        throw new Error('No route found from OSRM');
       }
 
       return this.processOSRMData(data);
@@ -394,16 +650,92 @@ class RoutingService {
     }
   }
 
+  // Try to get route from online services (OpenRouteService only)
+  async getOnlineRoute(start, end) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    try {
+      // Use OpenRouteService with your API key
+      if (this.apiKey && this.apiKey !== 'YOUR_FREE_API_KEY_HERE') {
+        const orsRoute = await this.getOpenRouteServiceRoute(start, end, controller);
+        clearTimeout(timeoutId);
+        return orsRoute;
+      } else {
+        throw new Error('OpenRouteService API key not configured');
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  }
+
+  // Get route from OpenRouteService using your API key
+  async getOpenRouteServiceRoute(start, end, controller) {
+    const url = `${this.routingBaseURL}/directions/driving-car`;
+    
+    // Validate coordinates
+    if (!start.lat || !start.lng || !end.lat || !end.lng) {
+      throw new Error('Invalid coordinates for OpenRouteService');
+    }
+    
+    const requestBody = {
+      coordinates: [[start.lng, start.lat], [end.lng, end.lat]],
+      format: 'geojson',
+      instructions: true,
+      geometry_simplify: false
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': this.apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'RouteSync2.0-Odisha'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`OpenRouteService HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.features || data.features.length === 0) {
+      throw new Error('No route found from OpenRouteService');
+    }
+
+    return this.processOpenRouteServiceData(data);
+  }
+
+
+
   // Process OSRM data
   processOSRMData(data) {
     const route = data.routes[0];
     const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]); // Convert to [lat, lng]
     
+    // Process steps for instructions
+    const instructions = [];
+    if (route.legs && route.legs[0] && route.legs[0].steps) {
+      route.legs[0].steps.forEach(step => {
+        instructions.push({
+          instruction: step.maneuver?.instruction || 'Continue',
+          distance: step.distance || 0,
+          duration: step.duration || 0
+        });
+      });
+    }
+    
     return {
       coordinates,
       distance: route.distance, // in meters
       duration: route.duration, // in seconds
-      instructions: route.legs[0]?.steps || [],
+      instructions: instructions,
       bounds: this.calculateBounds(coordinates),
     };
   }
@@ -682,7 +1014,7 @@ class RoutingService {
     return nearestCity;
   }
 
-  // Process OpenRouteService data
+  // Process OpenRouteService data (updated)
   processOpenRouteServiceData(data) {
     if (!data.features || data.features.length === 0) {
       throw new Error('No route found');
@@ -693,8 +1025,8 @@ class RoutingService {
     
     return {
       coordinates,
-      distance: route.properties.summary.distance, // in meters
-      duration: route.properties.summary.duration, // in seconds
+      distance: route.properties.segments[0]?.distance || route.properties.summary?.distance, // in meters
+      duration: route.properties.segments[0]?.duration || route.properties.summary?.duration, // in seconds
       instructions: route.properties.segments[0]?.steps || [],
       bounds: this.calculateBounds(coordinates),
     };

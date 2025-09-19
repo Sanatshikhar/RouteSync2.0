@@ -16,11 +16,7 @@ const SearchBus = () => {
   const [recentSearches, setRecentSearches] = useState([]);
   const [foundRoutes, setFoundRoutes] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [nearbyBuses, setNearbyBuses] = useState([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
-  const [useManualLocation, setUseManualLocation] = useState(false);
-  const [manualLocationQuery, setManualLocationQuery] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState([]);
 
   useEffect(() => {
     // Handle location passed from HomePage
@@ -36,108 +32,124 @@ const SearchBus = () => {
     }
   }, [location.state]);
 
-  // Auto-fetch user location and nearby buses
+  // Detect GPS location and get location name via reverse geocoding
   useEffect(() => {
-    if (userLocation && !useManualLocation) {
+    if (userLocation) {
       setIsLoadingLocation(false);
-      // Find nearest bus stop to user's location
-      const allStops = moBusService.getAllStops();
-      const nearestStop = allStops
-        .map(stop => ({
-          ...stop,
-          distance: moBusService.calculateDistance(
-            userLocation.lat, userLocation.lng,
-            stop.coordinates.lat, stop.coordinates.lng
-          )
-        }))
-        .sort((a, b) => a.distance - b.distance)[0];
-
-      if (nearestStop && nearestStop.distance <= 10) { // Only auto-fill if within 10km
-        setFrom(nearestStop.name);
-        // Auto-fetch buses in this zone
-        fetchBusesInZone(nearestStop);
-      } else {
-        // If no nearby stop found, suggest manual entry
-        setIsLoadingLocation(false);
-      }
-    } else if (!userLocation) {
+      console.log('GPS location detected:', userLocation);
+      
+      // Get location name from coordinates using reverse geocoding
+      getLocationName(userLocation.lat, userLocation.lng);
+    } else {
       // If location permission denied or not available, show manual option after timeout
       setTimeout(() => {
         setIsLoadingLocation(false);
       }, 5000);
     }
-  }, [userLocation, useManualLocation]);
+  }, [userLocation]);
 
-  // Handle manual location search
-  const handleManualLocationSearch = (query) => {
-    setManualLocationQuery(query);
-    if (query.length > 2) {
-      const matches = moBusService.searchStops(query);
-      setLocationSuggestions(matches.slice(0, 5));
-    } else {
-      setLocationSuggestions([]);
-    }
-  };
-
-  // Select manual location
-  const selectManualLocation = (stop) => {
-    setFrom(stop.name);
-    setManualLocationQuery(stop.name);
-    setLocationSuggestions([]);
-    setUseManualLocation(true);
-    
-    // Fetch buses in this zone
-    fetchBusesInZone(stop);
-  };
-
-  // Switch to manual location entry
-  const switchToManualLocation = () => {
-    setUseManualLocation(true);
-    setFrom("");
-    setNearbyBuses([]);
-  };
-
-  // Fetch buses in the user's zone
-  const fetchBusesInZone = (nearestStop) => {
+  // Get location name from GPS coordinates
+  const getLocationName = async (lat, lng) => {
     try {
-      // Get all routes that pass through the nearest stop
-      const routesInZone = moBusService.getRoutesByStop(nearestStop.name);
+      console.log('Getting location name for:', lat, lng);
       
-      // Get nearby stops within 5km radius
-      const allStops = moBusService.getAllStops();
-      const nearbyStops = allStops
-        .map(stop => ({
-          ...stop,
-          distance: moBusService.calculateDistance(
-            nearestStop.coordinates.lat, nearestStop.coordinates.lng,
-            stop.coordinates.lat, stop.coordinates.lng
-          )
-        }))
-        .filter(stop => stop.distance <= 5) // Within 5km
-        .sort((a, b) => a.distance - b.distance);
-
-      // Create a comprehensive list of available routes in the zone
-      const zoneBuses = [];
-      nearbyStops.forEach(stop => {
-        const stopRoutes = moBusService.getRoutesByStop(stop.name);
-        stopRoutes.forEach(route => {
-          if (!zoneBuses.find(bus => bus.route_id === route.route_id)) {
-            zoneBuses.push({
-              ...route,
-              nearestStop: stop.name,
-              distanceFromUser: stop.distance,
-              estimatedTime: Math.round(stop.distance * 3), // 3 minutes per km
-              fare: Math.max(5, Math.round(stop.distance * 2)) // ₹2 per km, minimum ₹5
-            });
+      // Use Nominatim (OpenStreetMap) reverse geocoding API with more details
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=en&zoom=18`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Reverse geocoding result:', data);
+        
+        // Extract location name from the response
+        const address = data.address || {};
+        let locationName = '';
+        
+        // Priority order for location name extraction (most specific to least specific)
+        // 1. Educational institutions, hospitals, landmarks
+        if (address.university || address.college || address.school) {
+          locationName = address.university || address.college || address.school;
+        }
+        // 2. Amenities (hospitals, malls, etc.)
+        else if (address.amenity) {
+          locationName = address.amenity;
+        }
+        // 3. Building or house name
+        else if (address.building || address.house_name) {
+          locationName = address.building || address.house_name;
+        }
+        // 4. Road name (if it's a well-known road)
+        else if (address.road && !address.road.includes('Ward') && !address.road.includes('Block')) {
+          locationName = address.road;
+        }
+        // 5. Commercial or residential area
+        else if (address.commercial || address.residential) {
+          locationName = address.commercial || address.residential;
+        }
+        // 6. Suburb or neighbourhood (avoid "Ward" names)
+        else if (address.suburb && !address.suburb.includes('Ward')) {
+          locationName = address.suburb;
+        }
+        else if (address.neighbourhood && !address.neighbourhood.includes('Ward')) {
+          locationName = address.neighbourhood;
+        }
+        // 7. Village or hamlet
+        else if (address.village || address.hamlet) {
+          locationName = address.village || address.hamlet;
+        }
+        // 8. City or town
+        else if (address.city || address.town) {
+          locationName = address.city || address.town;
+        }
+        // 9. State district
+        else if (address.state_district) {
+          locationName = address.state_district;
+        }
+        // 10. Fallback to first part of display name (cleaned up)
+        else {
+          const displayParts = data.display_name?.split(',') || [];
+          locationName = displayParts[0]?.trim() || 'Current Location';
+          
+          // If it's still a ward or block, try the second part
+          if (locationName.includes('Ward') || locationName.includes('Block')) {
+            locationName = displayParts[1]?.trim() || displayParts[0]?.trim() || 'Current Location';
           }
-        });
-      });
-
-      setNearbyBuses(zoneBuses.slice(0, 10)); // Show top 10 routes
+        }
+        
+        // Clean up the location name
+        locationName = locationName.replace(/Ward \d+/gi, '').trim();
+        locationName = locationName.replace(/Block \d+/gi, '').trim();
+        
+        // If location name is empty after cleanup, use fallback
+        if (!locationName || locationName.length < 2) {
+          locationName = address.city || address.town || 'Current Location';
+        }
+        
+        console.log('Extracted location name:', locationName);
+        
+        // Auto-fill "From" field with location name if not already filled
+        if (locationName && !from) {
+          setFrom(locationName);
+          console.log('Auto-filled "From" field with location name:', locationName);
+        }
+      } else {
+        console.log('Reverse geocoding failed, using fallback');
+        // Fallback to "Current Location" if API fails
+        if (!from) {
+          setFrom('Current Location');
+        }
+      }
     } catch (error) {
-      console.error('Error fetching buses in zone:', error);
+      console.error('Error getting location name:', error);
+      // Fallback to "Current Location" if there's an error
+      if (!from) {
+        setFrom('Current Location');
+      }
     }
   };
+
+
 
   const handleSearch = async () => {
     if (!from || !to) {
@@ -391,167 +403,46 @@ const SearchBus = () => {
         {/* Location Status */}
         {isLoadingLocation ? (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
-                <span className="font-semibold text-orange-800">Getting your location...</span>
-              </div>
-              <button
-                onClick={switchToManualLocation}
-                className="text-sm bg-orange-600 text-white px-3 py-1 rounded-full hover:bg-orange-700 transition-colors"
-              >
-                Enter Manually
-              </button>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
+              <span className="font-semibold text-orange-800">Getting your location...</span>
             </div>
             <div className="text-sm text-orange-700">
               Please allow location access or enter your location manually
             </div>
           </div>
-        ) : userLocation && !useManualLocation ? (
+        ) : userLocation ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="font-semibold text-green-800">Location Found!</span>
-              </div>
-              <button
-                onClick={switchToManualLocation}
-                className="text-sm bg-green-600 text-white px-3 py-1 rounded-full hover:bg-green-700 transition-colors"
-              >
-                Change Location
-              </button>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="font-semibold text-green-800">Current Location Detected</span>
             </div>
             <div className="text-sm text-green-700">
-              Showing buses near your location ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
-            </div>
-          </div>
-        ) : useManualLocation ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-blue-800">Enter Your Location</span>
-              {userLocation && (
-                <button
-                  onClick={() => {
-                    setUseManualLocation(false);
-                    setManualLocationQuery("");
-                    setLocationSuggestions([]);
-                  }}
-                  className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700 transition-colors"
-                >
-                  Use GPS
-                </button>
+              📍 Your GPS location: ({userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)})
+              {from ? (
+                <div className="mt-1 text-blue-600">
+                  📍 Auto-filled current location: <strong>{from}</strong>
+                </div>
+              ) : (
+                <div className="mt-1 text-orange-600">
+                  🔄 Getting location name...
+                </div>
               )}
             </div>
-            <div className="relative">
-              <input
-                type="text"
-                value={manualLocationQuery}
-                onChange={(e) => handleManualLocationSearch(e.target.value)}
-                className="w-full p-2 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Search for your location (e.g., KIIT Square, Master Canteen)"
-              />
-              {locationSuggestions.length > 0 && (
-                <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-auto">
-                  {locationSuggestions.map((suggestion, index) => (
-                    <li
-                      key={index}
-                      className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                      onClick={() => selectManualLocation(suggestion)}
-                    >
-                      <div className="font-medium text-gray-800">{suggestion.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {suggestion.coordinates.type.replace('_', ' ')} • {suggestion.routes.length} routes
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="text-sm text-blue-700 mt-2">
-              Type to search for bus stops, landmarks, or areas
-            </div>
           </div>
+
         ) : !userLocation ? (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
               <span className="font-semibold text-gray-800">Location Access Denied</span>
-              <button
-                onClick={switchToManualLocation}
-                className="text-sm bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700 transition-colors"
-              >
-                Enter Manually
-              </button>
             </div>
             <div className="text-sm text-gray-600">
-              Please enter your location manually to see nearby buses
+              Please allow location access or enter your source and destination manually
             </div>
           </div>
         ) : null}
 
-        {/* Nearby Buses in Your Zone */}
-        {nearbyBuses.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm mb-6">
-            <div className="p-4 border-b">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                </svg>
-                Buses in Your Zone
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">Routes available near your location</p>
-            </div>
-            
-            <div className="divide-y">
-              {nearbyBuses.map((bus, index) => (
-                <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-4 h-4 rounded-full"
-                        style={{ backgroundColor: bus.color }}
-                      ></div>
-                      <span className="font-semibold text-gray-800">Route {bus.route_id}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-green-600">₹{bus.fare}</div>
-                      <div className="text-xs text-gray-500">{bus.estimatedTime} mins</div>
-                    </div>
-                  </div>
-                  
-                  <div className="text-sm text-gray-600 mb-2">
-                    Nearest stop: {bus.nearestStop} • {bus.distanceFromUser.toFixed(1)} km away
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {bus.stops.slice(0, 3).map((stop, stopIndex) => (
-                      <span key={stopIndex} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {stop}
-                      </span>
-                    ))}
-                    {bus.stops.length > 3 && (
-                      <span className="text-xs text-gray-500">
-                        +{bus.stops.length - 3} more stops
-                      </span>
-                    )}
-                  </div>
-                  
-                  <button 
-                    onClick={() => navigate('/bus-status', { 
-                      state: { 
-                        route: bus,
-                        from: bus.nearestStop,
-                        to: "Select destination"
-                      }
-                    })}
-                    className="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-                  >
-                    Track This Bus
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+
 
         {/* Auto-fetched Routes */}
         {(isSearching || foundRoutes.length > 0) && (
@@ -603,18 +494,32 @@ const SearchBus = () => {
                       )}
                     </div>
                     
-                    <button 
-                      onClick={() => navigate('/bus-status', { 
-                        state: { 
-                          route: route,
-                          from: from,
-                          to: to
-                        }
-                      })}
-                      className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      Track This Route
-                    </button>
+                    <div className="mt-3 flex gap-2">
+                      <button 
+                        onClick={() => navigate('/bus-status', { 
+                          state: { 
+                            route: route,
+                            from: from,
+                            to: to
+                          }
+                        })}
+                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Track Bus
+                      </button>
+                      <button 
+                        onClick={() => navigate('/live-tracking', { 
+                          state: { 
+                            from: from,
+                            to: to,
+                            route: route
+                          }
+                        })}
+                        className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                      >
+                        View Route
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

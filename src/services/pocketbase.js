@@ -7,7 +7,12 @@ export default pb;
 
 // Example: Fetch all buses
 export async function getBuses() {
-  return await pb.collection('buses').getFullList();
+  try {
+    return await pb.collection('buses').getFullList();
+  } catch (error) {
+    console.error('PocketBase getBuses error:', error);
+    throw new Error(`Database error: ${error.message}`);
+  }
 }
 
 // Example: Fetch all routes
