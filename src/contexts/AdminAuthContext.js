@@ -1,20 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import pb from '../services/pocketbase';
-const TransportAuthContext = createContext();
 
-export const useTransportAuth = () => useContext(TransportAuthContext);
+const AdminAuthContext = createContext();
 
-export const TransportAuthProvider = ({ children }) => {
-  const [transporter, setTransporter] = useState(pb.authStore.model && pb.authStore.model.collectionName === 'transporter' ? pb.authStore.model : null);
+export const useAdminAuth = () => useContext(AdminAuthContext);
+
+export const AdminAuthProvider = ({ children }) => {
+  const [admin, setAdmin] = useState(pb.authStore.model && pb.authStore.model.collectionName === '_superusers' ? pb.authStore.model : null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((token, model) => {
-      if (model && model.collectionName === 'transporter') {
-        setTransporter(model);
+      if (model && model.collectionName === '_superusers') {
+        setAdmin(model);
       } else {
-        setTransporter(null);
+        setAdmin(null);
       }
     });
     return () => unsubscribe();
@@ -24,9 +25,9 @@ export const TransportAuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await pb.collection('transporter').authWithPassword(email, password);
+      const res = await pb.collection('_superusers').authWithPassword(email, password);
       if (res?.record) {
-        setTransporter(res.record);
+        setAdmin(res.record);
         return res;
       }
       throw new Error('Login failed');
@@ -42,14 +43,14 @@ export const TransportAuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const newTransporter = await pb.collection('transporter').create({
+      const newAdmin = await pb.collection('_superusers').create({
         email: data.email,
         password: data.password,
-        passwordConfirm: data.confirmPassword,
+        passwordConfirm: data.password,
         name: data.name
       });
       await login(data.email, data.password);
-      return newTransporter;
+      return newAdmin;
     } catch (err) {
       setError(err.message || 'Registration failed');
       return null;
@@ -60,12 +61,12 @@ export const TransportAuthProvider = ({ children }) => {
 
   const logout = () => {
     pb.authStore.clear();
-    setTransporter(null);
+    setAdmin(null);
   };
 
   return (
-    <TransportAuthContext.Provider value={{ transporter, login, register, logout, loading, error }}>
+    <AdminAuthContext.Provider value={{ admin, login, register, logout, loading, error }}>
       {children}
-    </TransportAuthContext.Provider>
+    </AdminAuthContext.Provider>
   );
 };

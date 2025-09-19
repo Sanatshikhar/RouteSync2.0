@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import PocketBase from 'pocketbase';
-
-const pb = new PocketBase(process.env.REACT_APP_PB_URL || 'http://127.0.0.1:8090');
+import pb from '../../services/pocketbase';
 
 const TransportAuthPage = () => {
   const navigate = useNavigate();

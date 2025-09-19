@@ -1,8 +1,8 @@
 // Simple test to check PocketBase connection
-const PocketBase = require('pocketbase/cjs');
+const pb = require('./src/services/pocketbase');
 
 async function testDatabase() {
-  const pb = new PocketBase('http://127.0.0.1:8090');
+  // pb is imported from pocketbase.js
   
   try {
     console.log('Testing PocketBase connection...');

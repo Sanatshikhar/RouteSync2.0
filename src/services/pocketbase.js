@@ -1,8 +1,6 @@
-// PocketBase service for CRUD and auth
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase(process.env.REACT_APP_POCKETBASE_URL || 'http://127.0.0.1:8090');
-
+const pb = new PocketBase(process.env.REACT_APP_PB_URL);
 
 export default pb;
 
@@ -24,9 +22,4 @@ export async function getRoutes() {
 // Example: Create a booking
 export async function createBooking(data) {
   return await pb.collection('booking').create(data);
-}
-
-// Example: Auth login
-export async function login(email, password) {
-  return await pb.collection('users').authWithPassword(email, password);
 }

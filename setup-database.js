@@ -1,8 +1,8 @@
 // Script to set up PocketBase with sample data
 // Run this after creating the collections in PocketBase admin
 
-const PocketBase = require('pocketbase/cjs');
-const pb = new PocketBase('http://127.0.0.1:8090');
+const pb = require('./src/services/pocketbase');
+// pb is imported from pocketbase.js
 
 async function setupDatabase() {
   try {

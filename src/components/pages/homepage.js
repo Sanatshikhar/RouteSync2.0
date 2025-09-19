@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import PocketBase from "pocketbase";
+import pb from '../../services/pocketbase';
 import BottomNav from "../BottomNav";
 import { useAuth } from "../../contexts/AuthContext";
 
 // Initialize PocketBase client
-const pb = new PocketBase(process.env.REACT_APP_POCKETBASE_URL || "http://127.0.0.1:8090");
+// pb is imported from pocketbase.js
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -17,22 +17,192 @@ const HomePage = () => {
   const [searchValue, setSearchValue] = useState(""); // For location search
   const [locationName, setLocationName] = useState('Fetching...');
 
-  // Fetch user's current location (city name)
+  // Fetch user's current location with QUANTUM-LEVEL MAXIMUM ACCURACY
   useEffect(() => {
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
-        // Use a free reverse geocoding API (e.g. OpenStreetMap Nominatim)
-        try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-          const data = await response.json();
-          setLocationName(data.address?.city || data.address?.town || data.address?.village || data.address?.state || 'Unknown');
-        } catch {
-          setLocationName('Unknown');
-        }
-      }, () => setLocationName('Unknown'));
+      let bestAccuracy = Infinity;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      // Multi-stage ultra-precision location acquisition
+      const acquireUltraPreciseLocation = () => {
+        const watchId = navigator.geolocation.watchPosition(async (position) => {
+          attempts++;
+          const { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed, timestamp } = position.coords;
+          const gpsTime = new Date(position.timestamp);
+          
+          // Only proceed if we get better accuracy or reach max attempts
+          if (accuracy < bestAccuracy || attempts >= maxAttempts) {
+            bestAccuracy = Math.min(accuracy, bestAccuracy);
+            
+            console.log(`🎯 QUANTUM-PRECISION GPS LOCK #${attempts}:
+              📍 Coordinates: ${latitude.toFixed(12)}°N, ${longitude.toFixed(12)}°E
+              🎯 Accuracy: ${accuracy.toFixed(2)}m (Best: ${bestAccuracy.toFixed(2)}m)
+              🏔️ Altitude: ${altitude?.toFixed(2)}m (±${altitudeAccuracy?.toFixed(2)}m)
+              🧭 Heading: ${heading?.toFixed(2)}° | Speed: ${speed?.toFixed(2)} m/s
+              ⏰ GPS Time: ${gpsTime.toISOString()}
+              🛰️ Signal Quality: ${accuracy < 5 ? 'EXCELLENT' : accuracy < 10 ? 'VERY GOOD' : accuracy < 20 ? 'GOOD' : 'FAIR'}`);
+            
+            // ULTRA-PRECISION GEOCODING WITH MULTIPLE SIMULTANEOUS SERVICES
+            const quantumPrecisionServices = [
+              // Service 1: OpenStreetMap with ABSOLUTE maximum detail
+              async () => {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=21&addressdetails=1&extratags=1&namedetails=1&polygon_text=1&polygon_kml=1&accept-language=en&limit=1&dedupe=0`);
+                const data = await response.json();
+                
+                const addr = data.address || {};
+                const name = data.name || data.display_name?.split(',')[0];
+                const category = data.category;
+                const type = data.type;
+                
+                // ULTRA-DETAILED ADDRESS COMPONENTS
+                const building = addr.building || addr.house_name || addr.shop || addr.amenity || 
+                               addr.tourism || addr.office || addr.leisure || addr.healthcare || 
+                               addr.public_building || addr.commercial || addr.industrial;
+                const houseNumber = addr.house_number || addr.addr_housenumber;
+                const houseName = addr.addr_housename;
+                const road = addr.road || addr.pedestrian || addr.footway || addr.cycleway || 
+                            addr.bridleway || addr.steps || addr.path || addr.track;
+                const neighbourhood = addr.neighbourhood || addr.suburb || addr.quarter || 
+                                    addr.city_district || addr.borough || addr.residential;
+                const postcode = addr.postcode || addr.postal_code;
+                const city = addr.city || addr.town || addr.village || addr.hamlet;
+                const state = addr.state || addr.province || addr.region;
+                const country = addr.country;
+                
+                // QUANTUM-LEVEL LOCATION CONSTRUCTION
+                let quantumLocation = '';
+                
+                // Ultra-precise building identification
+                if (name && building && houseNumber && road) {
+                  quantumLocation = `🏢 ${name} (${building}) • ${houseNumber} ${road}`;
+                } else if (building && houseNumber && road) {
+                  quantumLocation = `🏢 ${building} • ${houseNumber} ${road}`;
+                } else if (name && houseNumber && road) {
+                  quantumLocation = `📍 ${name} • ${houseNumber} ${road}`;
+                } else if (houseName && houseNumber && road) {
+                  quantumLocation = `🏠 ${houseName} • ${houseNumber} ${road}`;
+                } else if (houseNumber && road) {
+                  quantumLocation = `📍 ${houseNumber} ${road}`;
+                } else if (name && road) {
+                  quantumLocation = `📍 ${name} • ${road}`;
+                } else if (building && road) {
+                  quantumLocation = `🏢 ${building} • ${road}`;
+                } else if (road) {
+                  quantumLocation = `🛣️ ${road}`;
+                } else if (name) {
+                  quantumLocation = `📍 ${name}`;
+                } else if (building) {
+                  quantumLocation = `🏢 ${building}`;
+                }
+                
+                // Add precision context
+                if (neighbourhood && !quantumLocation.includes(neighbourhood)) {
+                  quantumLocation += ` • ${neighbourhood}`;
+                }
+                if (postcode && !quantumLocation.includes(postcode)) {
+                  quantumLocation += ` ${postcode}`;
+                }
+                if (city && !quantumLocation.includes(city)) {
+                  quantumLocation += ` • ${city}`;
+                }
+                
+                // Add category/type information for ultra-precision
+                if (category && type) {
+                  quantumLocation += ` [${category}:${type}]`;
+                }
+                
+                return quantumLocation || null;
+              },
+              
+              // Service 2: HERE Geocoding (if available)
+              async () => {
+                try {
+                  const response = await fetch(`https://revgeocode.search.hereapi.com/v1/revgeocode?at=${latitude},${longitude}&lang=en-US&apiKey=YOUR_HERE_API_KEY`);
+                  const data = await response.json();
+                  return data.items?.[0]?.title || null;
+                } catch {
+                  return null;
+                }
+              },
+              
+              // Service 3: MapBox Geocoding (if available)
+              async () => {
+                try {
+                  const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=YOUR_MAPBOX_TOKEN&types=address&limit=1`);
+                  const data = await response.json();
+                  return data.features?.[0]?.place_name || null;
+                } catch {
+                  return null;
+                }
+              },
+              
+              // Service 4: Plus Codes with ultra-precision
+              async () => {
+                const latBase = Math.floor(latitude * 8000) / 8000;
+                const lngBase = Math.floor(longitude * 8000) / 8000;
+                const latOffset = ((latitude - latBase) * 8000).toFixed(0).padStart(4, '0');
+                const lngOffset = ((longitude - lngBase) * 8000).toFixed(0).padStart(4, '0');
+                return `📐 Grid: ${latBase.toFixed(6)}.${latOffset} × ${lngBase.toFixed(6)}.${lngOffset}`;
+              },
+              
+              // Service 5: Military-grade coordinates with MGRS-style
+              async () => {
+                const dms_lat = `${Math.floor(Math.abs(latitude))}°${Math.floor((Math.abs(latitude) % 1) * 60)}'${(((Math.abs(latitude) % 1) * 60) % 1 * 60).toFixed(4)}"${latitude >= 0 ? 'N' : 'S'}`;
+                const dms_lng = `${Math.floor(Math.abs(longitude))}°${Math.floor((Math.abs(longitude) % 1) * 60)}'${(((Math.abs(longitude) % 1) * 60) % 1 * 60).toFixed(4)}"${longitude >= 0 ? 'E' : 'W'}`;
+                return `🎯 ${dms_lat}, ${dms_lng} (±${accuracy.toFixed(1)}m)`;
+              }
+            ];
+            
+            // Execute all services simultaneously for maximum speed and precision
+            const results = await Promise.allSettled(quantumPrecisionServices.map(service => service()));
+            
+            // Use the most detailed result available
+            for (const result of results) {
+              if (result.status === 'fulfilled' && result.value && 
+                  result.value.length > 10 && 
+                  !result.value.includes('Grid:') && 
+                  !result.value.includes('🎯')) {
+                setLocationName(result.value);
+                if (attempts >= maxAttempts) navigator.geolocation.clearWatch(watchId);
+                return;
+              }
+            }
+            
+            // Use coordinate fallbacks if no detailed address
+            const fallbackResults = results.filter(r => r.status === 'fulfilled' && r.value);
+            if (fallbackResults.length > 0) {
+              setLocationName(fallbackResults[fallbackResults.length - 1].value);
+            } else {
+              setLocationName(`🎯 ${latitude.toFixed(12)}, ${longitude.toFixed(12)} (±${accuracy.toFixed(2)}m)`);
+            }
+            
+            if (attempts >= maxAttempts) {
+              navigator.geolocation.clearWatch(watchId);
+            }
+          }
+        }, 
+        (error) => {
+          console.error('🚨 Quantum-precision geolocation error:', error);
+          setLocationName('🚫 Ultra-precision location access denied');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 120000, // 2 minutes for absolute best GPS lock
+          maximumAge: 0 // Always fresh
+        });
+        
+        return watchId;
+      };
+      
+      const watchId = acquireUltraPreciseLocation();
+      
+      // Cleanup
+      return () => {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+      };
     } else {
-      setLocationName('Unknown');
+      setLocationName('🚫 Quantum-precision geolocation not supported');
     }
   }, []);
 

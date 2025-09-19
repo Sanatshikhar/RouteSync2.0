@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import PocketBase from 'pocketbase';
+import pb from '../../services/pocketbase';
 
 const tabs = [
 	{ key: 'buses', label: 'Buses' },
@@ -9,7 +9,7 @@ const tabs = [
 	{ key: 'drivers', label: 'Driver Verification' }
 ];
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+// pb is imported from pocketbase.js
 
 const AdminDashboard = () => {
 	const [activeTab, setActiveTab] = useState('buses');

@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import PocketBase from 'pocketbase';
+import pb from '../services/pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+// pb is imported from pocketbase.js
 
 const TransportDashboard = () => {
   const navigate = useNavigate();
