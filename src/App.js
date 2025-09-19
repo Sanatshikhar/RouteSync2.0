@@ -16,8 +16,7 @@ import BookingHistory from './components/pages/bookingHistory';
 import Settings from './components/pages/settings';
 import LostFoundPage from './components/pages/lostFound';
 import WishlistPage from './components/pages/wishlist';
-
-
+import AdminDashboard from './components/admin/admin';
 
 function App() {
   return (
@@ -41,9 +40,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/lostFound" element={<LostFoundPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
-
-          <Route path="/bus-status-mobile" element={<LiveTracking />} />
-          <Route path="/bus-status" element={<LiveTracking />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </div>
     </Router>
