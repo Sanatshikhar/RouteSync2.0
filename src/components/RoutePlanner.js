@@ -98,8 +98,10 @@ const RoutePlanner = ({ onRouteCalculated, onLocationSelect }) => {
       onRouteCalculated(route, start, end);
       
       // Show success message based on route source
-      if (route.source === 'openrouteservice') {
-        console.log('✅ Route calculated with live data');
+      if (route.source === 'osrm') {
+        console.log('✅ Route calculated with OSRM (real roads)');
+      } else if (route.source === 'openrouteservice') {
+        console.log('✅ Route calculated with OpenRouteService');
       } else {
         console.log('📱 Route calculated with smart estimation');
       }
@@ -272,13 +274,15 @@ const RoutePlanner = ({ onRouteCalculated, onLocationSelect }) => {
               <div className="flex items-center gap-1">
                 <div
                   className={`w-2 h-2 rounded-full ${
-                    routeInfo.source === "online"
+                    routeInfo.source === "osrm" || routeInfo.source === "openrouteservice"
                       ? "bg-green-500"
                       : "bg-orange-500"
                   }`}
                 ></div>
                 <span className="text-xs font-medium">
-                  {routeInfo.source === "online" ? "Online" : "Offline"}
+                  {routeInfo.source === "osrm" ? "OSRM" : 
+                   routeInfo.source === "openrouteservice" ? "OpenRoute" :
+                   routeInfo.source === "smart_fallback" ? "Smart Route" : "Estimated"}
                 </span>
               </div>
             </div>
