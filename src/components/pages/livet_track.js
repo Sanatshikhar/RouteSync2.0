@@ -1,12 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import useLiveBuses from '../../hooks/useLiveBuses';
+import useGeolocation from '../../hooks/useGeolocation';
+import Map from '../Map';
 
 const LivetTrack = () => {
   const [tab, setTab] = useState('Live status');
   const { buses, loading, error } = useLiveBuses();
+  const { location: userLocation } = useGeolocation();
 
   // For demo, show first bus details
   const bus = buses[0];
+
+  // Calculate map center based on bus location, user location, or default
+  const mapCenter = useMemo(() => {
+    if (bus?.last_known_lat && bus?.last_known_lng) {
+      return [bus.last_known_lat, bus.last_known_lng];
+    }
+    if (userLocation) {
+      return [userLocation.lat, userLocation.lng];
+    }
+    return [20.295, 85.826]; // Default center (Bhubaneswar)
+  }, [bus, userLocation]);
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] flex flex-col">
@@ -22,11 +36,18 @@ const LivetTrack = () => {
         <button className="text-white text-xl">&#8942;</button>
       </div>
 
-      {/* Map Section (Placeholder) */}
+      {/* Map Section */}
       {tab === 'Live status' && (
         <div className="bg-white flex flex-col items-center justify-center" style={{ height: 220, position: 'relative' }}>
-          {/* You can use bus.last_known_lat, bus.last_known_lng for map marker */}
-          <img src="https://maps.googleapis.com/maps/api/staticmap?center=20.295,85.826&zoom=14&size=400x200&maptype=roadmap&markers=color:red%7Clabel:B%7C20.295,85.826" alt="Map" className="w-full h-full object-cover rounded-b-2xl" />
+          {/* OpenStreetMap with bus markers */}
+          <Map 
+            center={mapCenter}
+            zoom={14}
+            height={220}
+            buses={buses}
+            userLocation={userLocation}
+            className="w-full rounded-b-2xl overflow-hidden"
+          />
           {/* Bus Card Overlay */}
           <div className="absolute left-1/2 -translate-x-1/2 bottom-2 w-[90%] bg-white rounded-xl shadow-lg p-4">
             {loading && <div>Loading bus info...</div>}
