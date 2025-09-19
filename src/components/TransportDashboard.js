@@ -1,8 +1,19 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import PocketBase from 'pocketbase';
+
+const pb = new PocketBase('http://127.0.0.1:8090');
 
 const TransportDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // If not authenticated as transporter, redirect to TransportAuthPage
+    if (!pb.authStore.isValid || pb.authStore.model?.collectionName !== 'transporter') {
+      navigate('/transport-auth', { state: { from: location } });
+    }
+  }, [navigate, location]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

@@ -19,6 +19,7 @@ import WishlistPage from './components/pages/wishlist';
 import AdminDashboard from './components/admin/admin';
 import TransportDashboard from './components/TransportDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import TransportAuthPage from './components/pages/TransportAuthPage';
 
 function App() {
   return (
@@ -44,7 +45,8 @@ function App() {
           <Route path="/lostFound" element={<ProtectedRoute><LostFoundPage /></ProtectedRoute>} />
           <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/transport" element={<ProtectedRoute><TransportDashboard /></ProtectedRoute>} />
+          <Route path="/transport" element={<TransportDashboard />} />
+          <Route path="/transport-auth" element={<TransportAuthPage />} />
         </Routes>
       </div>
     </Router>
