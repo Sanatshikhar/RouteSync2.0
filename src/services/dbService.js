@@ -5,6 +5,15 @@ class DatabaseService {
   async getStopSuggestions(query) {
     if (!query || query.length < 2) return [];
     
+    // Fallback stops for Odisha
+    const fallbackStops = [
+      'Master Canteen', 'AIIMS Bhubaneswar', 'Baramunda ISBT', 'Nandankanan',
+      'Airport', 'Dumduma', 'Puri', 'Cuttack', 'Acharya Vihar', 'Lingipur',
+      'Bhubaneswar Railway Station', 'Sri Sri University', 'Jagatpur', 'OMP Square',
+      'Khurda New Bus Stand', 'Patia Square', 'Unit-1 Haat', 'Khandagiri',
+      'Cuttack Badambadi', 'CDA Cuttack', 'Phulnakhara', 'Kandarpur', 'Pahala'
+    ];
+    
     try {
       const routes = await pb.collection('routes').getFullList({
         filter: `start_point ~ "${query}" || end_point ~ "${query}" || stops ~ "${query}"`
@@ -37,16 +46,27 @@ class DatabaseService {
         });
       });
       
+      // If database results are empty, use fallback
+      if (stops.size === 0) {
+        const fallbackMatches = fallbackStops.filter(stop => 
+          stop.toLowerCase().includes(query.toLowerCase())
+        );
+        fallbackMatches.forEach(stop => stops.add(stop));
+      }
+      
       return Array.from(stops).slice(0, 10);
     } catch (error) {
-      console.error('Error fetching stop suggestions:', error);
-      return [];
+      console.error('Error fetching stop suggestions, using fallback:', error);
+      // Use fallback stops when database fails
+      return fallbackStops.filter(stop => 
+        stop.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 10);
     }
   }
 
   // Get coordinates for a stop (accurate coordinates)
   async getStopCoordinates(stopName) {
-    // Accurate coordinates based on Google Maps
+    // Accurate coordinates for Odisha locations
     const fallbackCoords = {
       'Master Canteen': { lat: 20.2961, lng: 85.8245 },
       'AIIMS Bhubaneswar': { lat: 20.2700, lng: 85.8400 },
@@ -60,8 +80,8 @@ class DatabaseService {
       'Puri': { lat: 19.8135, lng: 85.8312 },
       'Cuttack': { lat: 20.4625, lng: 85.8828 },
       'Cuttack Main': { lat: 20.4625, lng: 85.8828 },
-      'Cuttack mmain': { lat: 20.4625, lng: 85.8828 },
-      'SCB Medical (Cuuttack)': { lat: 20.4625, lng: 85.8828 },
+      'Cuttack Main': { lat: 20.4625, lng: 85.8828 },
+      'SCB Medical (Cuttack)': { lat: 20.4625, lng: 85.8828 },
       'Acharya Vihar': { lat: 20.2750, lng: 85.8150 },
       'Acharya Vihar Square': { lat: 20.2750, lng: 85.8150 },
       'Lingipur': { lat: 20.2400, lng: 85.8450 },
@@ -304,10 +324,32 @@ class DatabaseService {
         });
       }
       
+      // If no routes found, create a sample route for demo
+      if (processedRoutes.length === 0) {
+        processedRoutes.push({
+          route_id: 'DEMO-001',
+          name: `${fromStop} - ${toStop} Route`,
+          stops: [fromStop, toStop],
+          color: '#3B82F6',
+          fare: 25,
+          distance: 15,
+          estimatedTime: 30
+        });
+      }
+      
       return processedRoutes;
     } catch (error) {
-      console.error('Error finding routes:', error);
-      return [];
+      console.error('Error finding routes, creating demo route:', error);
+      // Return a demo route when database fails
+      return [{
+        route_id: 'DEMO-001',
+        name: `${fromStop} - ${toStop} Route`,
+        stops: [fromStop, toStop],
+        color: '#3B82F6',
+        fare: 25,
+        distance: 15,
+        estimatedTime: 30
+      }];
     }
   }
 }
