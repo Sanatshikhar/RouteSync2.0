@@ -45,7 +45,7 @@ function App() {
                 <Route path="/search-bus" element={<SearchBus />} />
                 <Route path="/listbus" element={<ListBus />} />
                 {/* Protected features for users */}
-                <Route path="/live-tracking" element={<ProtectedRoute><LiveTracking /></ProtectedRoute>} />
+                <Route path="/bus-status" element={<ProtectedRoute><LiveTracking /></ProtectedRoute>} />
                 <Route path="/boarding" element={<ProtectedRoute><Boarding /></ProtectedRoute>} />
                 <Route path="/payment" element={<ProtectedRoute><PaymentSystem /></ProtectedRoute>} />
                 <Route path="/ticket" element={<ProtectedRoute><TicketList /></ProtectedRoute>} />

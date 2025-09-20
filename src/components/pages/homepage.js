@@ -46,9 +46,9 @@ const HomePage = () => {
             
             // ULTRA-PRECISION GEOCODING WITH MULTIPLE SIMULTANEOUS SERVICES
             const quantumPrecisionServices = [
-              // Service 1: OpenStreetMap with ABSOLUTE maximum detail
+              // Service 1: OpenStreetMap reverse geocoding
               async () => {
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=21&addressdetails=1&extratags=1&namedetails=1&polygon_text=1&polygon_kml=1&accept-language=en&limit=1&dedupe=0`);
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
                 const data = await response.json();
                 
                 const addr = data.address || {};
@@ -71,71 +71,35 @@ const HomePage = () => {
                 const state = addr.state || addr.province || addr.region;
                 const country = addr.country;
                 
-                // QUANTUM-LEVEL LOCATION CONSTRUCTION
-                let quantumLocation = '';
+                // Extract short location name
+                let locationName = '';
                 
-                // Ultra-precise building identification
-                if (name && building && houseNumber && road) {
-                  quantumLocation = `🏢 ${name} (${building}) • ${houseNumber} ${road}`;
-                } else if (building && houseNumber && road) {
-                  quantumLocation = `🏢 ${building} • ${houseNumber} ${road}`;
-                } else if (name && houseNumber && road) {
-                  quantumLocation = `📍 ${name} • ${houseNumber} ${road}`;
-                } else if (houseName && houseNumber && road) {
-                  quantumLocation = `🏠 ${houseName} • ${houseNumber} ${road}`;
-                } else if (houseNumber && road) {
-                  quantumLocation = `📍 ${houseNumber} ${road}`;
-                } else if (name && road) {
-                  quantumLocation = `📍 ${name} • ${road}`;
-                } else if (building && road) {
-                  quantumLocation = `🏢 ${building} • ${road}`;
-                } else if (road) {
-                  quantumLocation = `🛣️ ${road}`;
-                } else if (name) {
-                  quantumLocation = `📍 ${name}`;
-                } else if (building) {
-                  quantumLocation = `🏢 ${building}`;
+                if (name && name.length < 20) {
+                  locationName = name;
+                } else if (building && building.length < 20) {
+                  locationName = building;
+                } else if (road && road.length < 20) {
+                  locationName = road;
+                } else if (neighbourhood && neighbourhood.length < 20) {
+                  locationName = neighbourhood;
+                } else if (city) {
+                  locationName = city;
+                } else {
+                  locationName = data.display_name?.split(',')[0] || 'Current Location';
                 }
                 
-                // Add precision context
-                if (neighbourhood && !quantumLocation.includes(neighbourhood)) {
-                  quantumLocation += ` • ${neighbourhood}`;
-                }
-                if (postcode && !quantumLocation.includes(postcode)) {
-                  quantumLocation += ` ${postcode}`;
-                }
-                if (city && !quantumLocation.includes(city)) {
-                  quantumLocation += ` • ${city}`;
+                // Clean and limit length
+                locationName = locationName.replace(/Ward \d+/gi, '').trim();
+                if (locationName.length > 15) {
+                  locationName = locationName.substring(0, 12) + '...';
                 }
                 
-                // Add category/type information for ultra-precision
-                if (category && type) {
-                  quantumLocation += ` [${category}:${type}]`;
-                }
-                
-                return quantumLocation || null;
+                return locationName || null;
               },
               
-              // Service 2: HERE Geocoding (if available)
+              // Service 2: Simple fallback
               async () => {
-                try {
-                  const response = await fetch(`https://revgeocode.search.hereapi.com/v1/revgeocode?at=${latitude},${longitude}&lang=en-US&apiKey=YOUR_HERE_API_KEY`);
-                  const data = await response.json();
-                  return data.items?.[0]?.title || null;
-                } catch {
-                  return null;
-                }
-              },
-              
-              // Service 3: MapBox Geocoding (if available)
-              async () => {
-                try {
-                  const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${longitude},${latitude}.json?access_token=YOUR_MAPBOX_TOKEN&types=address&limit=1`);
-                  const data = await response.json();
-                  return data.features?.[0]?.place_name || null;
-                } catch {
-                  return null;
-                }
+                return 'Current Location';
               },
               
               // Service 4: Plus Codes with ultra-precision
@@ -158,10 +122,9 @@ const HomePage = () => {
             // Execute all services simultaneously for maximum speed and precision
             const results = await Promise.allSettled(quantumPrecisionServices.map(service => service()));
             
-            // Use the most detailed result available
+            // Use first valid result
             for (const result of results) {
               if (result.status === 'fulfilled' && result.value && 
-                  result.value.length > 10 && 
                   !result.value.includes('Grid:') && 
                   !result.value.includes('🎯')) {
                 setLocationName(result.value);
@@ -170,13 +133,7 @@ const HomePage = () => {
               }
             }
             
-            // Use coordinate fallbacks if no detailed address
-            const fallbackResults = results.filter(r => r.status === 'fulfilled' && r.value);
-            if (fallbackResults.length > 0) {
-              setLocationName(fallbackResults[fallbackResults.length - 1].value);
-            } else {
-              setLocationName(`🎯 ${latitude.toFixed(12)}, ${longitude.toFixed(12)} (±${accuracy.toFixed(2)}m)`);
-            }
+            setLocationName('Current Location');
             
             if (attempts >= maxAttempts) {
               navigator.geolocation.clearWatch(watchId);
