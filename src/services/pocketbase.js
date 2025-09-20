@@ -1,6 +1,9 @@
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase(process.env.REACT_APP_PB_URL);
+const pb = new PocketBase(process.env.REACT_APP_PB_URL || 'https://routesync.studentvault.xyz');
+
+// Disable auto cancellation
+pb.autoCancellation(false);
 
 export default pb;
 
