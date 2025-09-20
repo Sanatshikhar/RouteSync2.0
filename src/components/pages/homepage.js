@@ -40,7 +40,7 @@ const HomePage = () => {
             } else if (addr.city) {
               locationName = addr.city;
             } else {
-              locationName = data.display_name?.split(',')[0] || 'Current Location';
+              locationName = data.display_name?.split(',')[5] || 'Current Location';
             }
             
             locationName = locationName.replace(/Ward \d+/gi, '').trim();
@@ -152,7 +152,7 @@ const HomePage = () => {
           {/* Right side - Location, Weather, Menu */}
           <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
             {/* Location - Hidden on very small screens */}
-            <div className="hidden xs:flex items-center bg-white bg-opacity-20 rounded-lg px-2 py-1">
+            <div className=" xs:flex items-center bg-white bg-opacity-20 rounded-lg px-2 py-1">
               <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
               </svg>
