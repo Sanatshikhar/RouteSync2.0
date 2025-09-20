@@ -4,175 +4,79 @@ import pb from '../../services/pocketbase';
 import BottomNav from "../BottomNav";
 import { useAuth } from "../../contexts/AuthContext";
 
-// Initialize PocketBase client
-// pb is imported from pocketbase.js
-
 const HomePage = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState("");
-  const [nearbyRoutes, setNearbyRoutes] = useState([]); // Store nearby routes
-  const [loadingNearby, setLoadingNearby] = useState(true); // Loading state for nearby routes
-  const [searchValue, setSearchValue] = useState(""); // For location search
+  const [nearbyRoutes, setNearbyRoutes] = useState([]);
+  const [loadingNearby, setLoadingNearby] = useState(true);
+  const [searchValue, setSearchValue] = useState("");
   const [locationName, setLocationName] = useState('Fetching...');
   const [recentSearches, setRecentSearches] = useState([]);
 
-  // Fetch user's current location with QUANTUM-LEVEL MAXIMUM ACCURACY
+  // Simplified location fetching for better performance
   useEffect(() => {
     if (navigator.geolocation) {
-      let bestAccuracy = Infinity;
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      // Multi-stage ultra-precision location acquisition
-      const acquireUltraPreciseLocation = () => {
-        const watchId = navigator.geolocation.watchPosition(async (position) => {
-          attempts++;
-          const { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed, timestamp } = position.coords;
-          const gpsTime = new Date(position.timestamp);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
           
-          // Only proceed if we get better accuracy or reach max attempts
-          if (accuracy < bestAccuracy || attempts >= maxAttempts) {
-            bestAccuracy = Math.min(accuracy, bestAccuracy);
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+            );
+            const data = await response.json();
             
-            console.log(`🎯 QUANTUM-PRECISION GPS LOCK #${attempts}:
-              📍 Coordinates: ${latitude.toFixed(12)}°N, ${longitude.toFixed(12)}°E
-              🎯 Accuracy: ${accuracy.toFixed(2)}m (Best: ${bestAccuracy.toFixed(2)}m)
-              🏔️ Altitude: ${altitude?.toFixed(2)}m (±${altitudeAccuracy?.toFixed(2)}m)
-              🧭 Heading: ${heading?.toFixed(2)}° | Speed: ${speed?.toFixed(2)} m/s
-              ⏰ GPS Time: ${gpsTime.toISOString()}
-              🛰️ Signal Quality: ${accuracy < 5 ? 'EXCELLENT' : accuracy < 10 ? 'VERY GOOD' : accuracy < 20 ? 'GOOD' : 'FAIR'}`);
+            const addr = data.address || {};
+            let locationName = '';
             
-            // ULTRA-PRECISION GEOCODING WITH MULTIPLE SIMULTANEOUS SERVICES
-            const quantumPrecisionServices = [
-              // Service 1: OpenStreetMap reverse geocoding
-              async () => {
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`);
-                const data = await response.json();
-                
-                const addr = data.address || {};
-                const name = data.name || data.display_name?.split(',')[0];
-                const category = data.category;
-                const type = data.type;
-                
-                // ULTRA-DETAILED ADDRESS COMPONENTS
-                const building = addr.building || addr.house_name || addr.shop || addr.amenity || 
-                               addr.tourism || addr.office || addr.leisure || addr.healthcare || 
-                               addr.public_building || addr.commercial || addr.industrial;
-                const houseNumber = addr.house_number || addr.addr_housenumber;
-                const houseName = addr.addr_housename;
-                const road = addr.road || addr.pedestrian || addr.footway || addr.cycleway || 
-                            addr.bridleway || addr.steps || addr.path || addr.track;
-                const neighbourhood = addr.neighbourhood || addr.suburb || addr.quarter || 
-                                    addr.city_district || addr.borough || addr.residential;
-                const postcode = addr.postcode || addr.postal_code;
-                const city = addr.city || addr.town || addr.village || addr.hamlet;
-                const state = addr.state || addr.province || addr.region;
-                const country = addr.country;
-                
-                // Extract short location name
-                let locationName = '';
-                
-                if (name && name.length < 20) {
-                  locationName = name;
-                } else if (building && building.length < 20) {
-                  locationName = building;
-                } else if (road && road.length < 20) {
-                  locationName = road;
-                } else if (neighbourhood && neighbourhood.length < 20) {
-                  locationName = neighbourhood;
-                } else if (city) {
-                  locationName = city;
-                } else {
-                  locationName = data.display_name?.split(',')[0] || 'Current Location';
-                }
-                
-                // Clean and limit length
-                locationName = locationName.replace(/Ward \d+/gi, '').trim();
-                if (locationName.length > 15) {
-                  locationName = locationName.substring(0, 12) + '...';
-                }
-                
-                return locationName || null;
-              },
-              
-              // Service 2: Simple fallback
-              async () => {
-                return 'Current Location';
-              },
-              
-              // Service 4: Plus Codes with ultra-precision
-              async () => {
-                const latBase = Math.floor(latitude * 8000) / 8000;
-                const lngBase = Math.floor(longitude * 8000) / 8000;
-                const latOffset = ((latitude - latBase) * 8000).toFixed(0).padStart(4, '0');
-                const lngOffset = ((longitude - lngBase) * 8000).toFixed(0).padStart(4, '0');
-                return `📐 Grid: ${latBase.toFixed(6)}.${latOffset} × ${lngBase.toFixed(6)}.${lngOffset}`;
-              },
-              
-              // Service 5: Military-grade coordinates with MGRS-style
-              async () => {
-                const dms_lat = `${Math.floor(Math.abs(latitude))}°${Math.floor((Math.abs(latitude) % 1) * 60)}'${(((Math.abs(latitude) % 1) * 60) % 1 * 60).toFixed(4)}"${latitude >= 0 ? 'N' : 'S'}`;
-                const dms_lng = `${Math.floor(Math.abs(longitude))}°${Math.floor((Math.abs(longitude) % 1) * 60)}'${(((Math.abs(longitude) % 1) * 60) % 1 * 60).toFixed(4)}"${longitude >= 0 ? 'E' : 'W'}`;
-                return `🎯 ${dms_lat}, ${dms_lng} (±${accuracy.toFixed(1)}m)`;
-              }
-            ];
-            
-            // Execute all services simultaneously for maximum speed and precision
-            const results = await Promise.allSettled(quantumPrecisionServices.map(service => service()));
-            
-            // Use first valid result
-            for (const result of results) {
-              if (result.status === 'fulfilled' && result.value && 
-                  !result.value.includes('Grid:') && 
-                  !result.value.includes('🎯')) {
-                setLocationName(result.value);
-                if (attempts >= maxAttempts) navigator.geolocation.clearWatch(watchId);
-                return;
-              }
+            if (data.name && data.name.length < 20) {
+              locationName = data.name;
+            } else if (addr.road && addr.road.length < 20) {
+              locationName = addr.road;
+            } else if (addr.neighbourhood && addr.neighbourhood.length < 20) {
+              locationName = addr.neighbourhood;
+            } else if (addr.city) {
+              locationName = addr.city;
+            } else {
+              locationName = data.display_name?.split(',')[0] || 'Current Location';
             }
             
+            locationName = locationName.replace(/Ward \d+/gi, '').trim();
+            if (locationName.length > 15) {
+              locationName = locationName.substring(0, 12) + '...';
+            }
+            
+            setLocationName(locationName || 'Current Location');
+          } catch (error) {
+            console.error('Geocoding error:', error);
             setLocationName('Current Location');
-            
-            if (attempts >= maxAttempts) {
-              navigator.geolocation.clearWatch(watchId);
-            }
           }
-        }, 
+        },
         (error) => {
-          console.error('🚨 Quantum-precision geolocation error:', error);
-          setLocationName('🚫 Ultra-precision location access denied');
+          console.error('Geolocation error:', error);
+          setLocationName('Location unavailable');
         },
         {
           enableHighAccuracy: true,
-          timeout: 120000, // 2 minutes for absolute best GPS lock
-          maximumAge: 0 // Always fresh
-        });
-        
-        return watchId;
-      };
-      
-      const watchId = acquireUltraPreciseLocation();
-      
-      // Cleanup
-      return () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-      };
+          timeout: 10000,
+          maximumAge: 300000
+        }
+      );
     } else {
-      setLocationName('🚫 Quantum-precision geolocation not supported');
+      setLocationName('Geolocation not supported');
     }
   }, []);
 
-  // Fetch 3 nearby routes from PocketBase on mount
+  // Fetch nearby routes
   useEffect(() => {
     const fetchNearbyRoutes = async () => {
       try {
         setLoadingNearby(true);
-        // Fetch 3 bus routes collection
         const records = await pb.collection("routes").getList(1, 3, {
           sort: "-created",
-          expand: "stops", // Expand stops relation if needed
+          expand: "stops",
         });
         setNearbyRoutes(records.items);
       } catch (error) {
@@ -184,14 +88,13 @@ const HomePage = () => {
 
     fetchNearbyRoutes();
     
-    // Load recent searches from localStorage
+    // Load recent searches
     const savedSearches = localStorage.getItem('recentSearches');
     if (savedSearches) {
       setRecentSearches(JSON.parse(savedSearches));
     }
   }, []);
 
-  // Function to handle search and redirect
   const handleSearchRedirect = () => {
     if (searchValue.trim().toLowerCase() === 'admin') {
       navigate('/admin');
@@ -199,9 +102,7 @@ const HomePage = () => {
     }
     if (searchValue.trim()) {
       navigate("/search-bus", {
-        state: {
-          destination: searchValue,
-        },
+        state: { destination: searchValue },
       });
     } else {
       navigate("/search-bus");
@@ -213,11 +114,9 @@ const HomePage = () => {
     navigate("/auth");
   };
 
-  // Function to format stops from JSON
   const formatStops = (stops) => {
     if (!stops) return "No stops information";
 
-    // If stops is a JSON string, parse it
     if (typeof stops === "string") {
       try {
         const parsedStops = JSON.parse(stops);
@@ -226,12 +125,10 @@ const HomePage = () => {
         }
         return "Invalid stops format";
       } catch (e) {
-        // If parsing fails, return as is
         return stops;
       }
     }
 
-    // If stops is already an array
     if (Array.isArray(stops)) {
       return stops.map((stop) => stop.name || stop).join(" → ");
     }
@@ -240,239 +137,62 @@ const HomePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-blue-600 overflow-y-auto scrollbar-hide">
+    <div className="min-h-screen bg-blue-600 overflow-y-auto">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-4">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center space-x-2">
-            <div>
-              <p className="text-sm">Good morning</p>
-              <p className="font-semibold">{user?.name || "User"}</p>
-            </div>
+      <div className="bg-blue-600 text-white px-3 py-4 sm:px-4 lg:px-6">
+        <div className="flex justify-between items-start mb-4">
+          {/* Left side - Greeting */}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs sm:text-sm text-blue-100 mb-1">Good morning</p>
+            <p className="font-semibold text-sm sm:text-base lg:text-lg truncate">
+              {user?.name || "User"}
+            </p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <svg
-                className="w-5 h-5 mr-1"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M10 2a5 5 0 015 5v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2V7a5 5 0 015-5zm0 2a3 3 0 00-3 3v2h6V7a3 3 0 00-3-3z" />
+
+          {/* Right side - Location, Weather, Menu */}
+          <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+            {/* Location - Hidden on very small screens */}
+            <div className="hidden xs:flex items-center bg-white bg-opacity-20 rounded-lg px-2 py-1">
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
               </svg>
-              <span>{locationName}</span>
+              <span className="text-xs max-w-16 sm:max-w-20 lg:max-w-32 truncate">
+                {locationName}
+              </span>
             </div>
-            <span>29°C</span>
-            {/* Mobile: menu button */}
+
+            {/* Weather - Hidden on mobile */}
+            <div className="hidden sm:flex items-center bg-white bg-opacity-20 rounded-lg px-2 py-1">
+              <span className="text-xs lg:text-sm">29°C</span>
+            </div>
+
+            {/* Menu button */}
             <button
-              className="block md:hidden"
+              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors md:hidden"
               onClick={() => setMenuOpen(true)}
               aria-label="Open menu"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            {/* Mobile sidebar menu overlay */}
-            {menuOpen && (
-              <div className="fixed inset-0 z-50 bg-opacity-40 flex justify-end md:hidden">
-                <div className="bg-white w-80 max-w-xs h-full shadow-lg p-6 flex flex-col overflow-y-auto">
-                  <button
-                    className="self-end mb-6 text-gray-500 hover:text-blue-600"
-                    onClick={() => setMenuOpen(false)}
-                    aria-label="Close menu"
-                  >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
 
-                  {/* Support & engagement */}
-                  <div className="mb-2">
-                    <button
-                      className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600"
-                      onClick={() =>
-                        setOpenDropdown(
-                          openDropdown === "support" ? "" : "support"
-                        )
-                      }
-                    >
-                      Support & engagement
-                      <span>{openDropdown === "support" ? "▲" : "▼"}</span>
-                    </button>
-                    {openDropdown === "support" && (
-                      <div className="pl-4">
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Help & support
-                        </button>
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Refer & feedback
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Alerts & account */}
-                  <div className="mb-2">
-                    <button
-                      className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600"
-                      onClick={() =>
-                        setOpenDropdown(
-                          openDropdown === "alerts" ? "" : "alerts"
-                        )
-                      }
-                    >
-                      Alerts & account
-                      <span>{openDropdown === "alerts" ? "▲" : "▼"}</span>
-                    </button>
-                    {openDropdown === "alerts" && (
-                      <div className="pl-4">
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          My account
-                        </button>
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Emergency SOS
-                        </button>
-                        <button
-                          className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/notifications");
-                          }}
-                        >
-                          Notifications
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* User preference */}
-                  <div className="mb-2">
-                    <button
-                      className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600"
-                      onClick={() =>
-                        setOpenDropdown(
-                          openDropdown === "preference" ? "" : "preference"
-                        )
-                      }
-                    >
-                      User preference
-                      <span>{openDropdown === "preference" ? "▲" : "▼"}</span>
-                    </button>
-                    {openDropdown === "preference" && (
-                      <div className="pl-4">
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Change city
-                        </button>
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Settings
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Essentials */}
-                  <div className="mb-2">
-                    <button
-                      className="w-full text-left font-semibold py-2 px-3 rounded hover:bg-blue-50 flex justify-between items-center text-blue-600"
-                      onClick={() =>
-                        setOpenDropdown(
-                          openDropdown === "essentials" ? "" : "essentials"
-                        )
-                      }
-                    >
-                      Essentials
-                      <span>{openDropdown === "essentials" ? "▲" : "▼"}</span>
-                    </button>
-                    {openDropdown === "essentials" && (
-                      <div className="pl-4">
-                        <button
-                          className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/lostFound");
-                          }}
-                        >
-                          Lost & Found
-                        </button>
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Booking
-                        </button>
-                        <button className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600">
-                          Cancellations
-                        </button>
-                        <button
-                          className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/wallet");
-                          }}
-                        >
-                          Wallet
-                        </button>
-                        <button
-                          className="w-full text-left py-2 px-3 rounded hover:bg-blue-50 text-blue-600"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            navigate("/wishlist");
-                          }}
-                        >
-                          Wishlist
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-8">
-                    <button
-                      className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        handleLogout();
-                      }}
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Desktop: logout button */}
+            {/* Desktop logout button */}
             <button
-              className="hidden md:block bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-700 hover:text-white transition-colors"
+              className="hidden md:block bg-white text-blue-600 px-3 py-2 lg:px-4 rounded-lg font-medium hover:bg-blue-50 transition-colors text-sm lg:text-base"
               onClick={handleLogout}
-              aria-label="Logout"
             >
               Logout
             </button>
           </div>
         </div>
 
-        {/* Search Bar - Modified to handle location input */}
-        <div className="relative mb-4">
+        {/* Search Bar */}
+        <div className="relative">
           <input
             type="text"
             placeholder="Enter Your Destination"
-            className="w-full py-2 px-4 rounded-lg text-gray-800 bg-white"
+            className="w-full py-3 px-4 pr-12 rounded-xl text-gray-800 bg-white text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-300"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             onKeyPress={(e) => {
@@ -483,34 +203,176 @@ const HomePage = () => {
           />
           <button
             onClick={handleSearchRedirect}
-            className="absolute right-3 top-2.5 text-gray-400 hover:text-blue-600"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
         </div>
       </div>
 
+      {/* Mobile Sidebar Menu */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex justify-end md:hidden">
+          <div className="bg-white w-full max-w-xs h-full shadow-xl p-4 flex flex-col overflow-y-auto">
+            <button
+              className="self-end mb-4 text-gray-500 hover:text-blue-600 p-2"
+              onClick={() => setMenuOpen(false)}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Menu Items */}
+            <div className="space-y-2 flex-1">
+              {/* Support & engagement */}
+              <div>
+                <button
+                  className="w-full text-left font-semibold py-3 px-3 rounded-lg hover:bg-blue-50 flex justify-between items-center text-blue-600"
+                  onClick={() => setOpenDropdown(openDropdown === "support" ? "" : "support")}
+                >
+                  Support & engagement
+                  <span className="text-sm">{openDropdown === "support" ? "▲" : "▼"}</span>
+                </button>
+                {openDropdown === "support" && (
+                  <div className="pl-4 space-y-1">
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Help & support
+                    </button>
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Refer & feedback
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Alerts & account */}
+              <div>
+                <button
+                  className="w-full text-left font-semibold py-3 px-3 rounded-lg hover:bg-blue-50 flex justify-between items-center text-blue-600"
+                  onClick={() => setOpenDropdown(openDropdown === "alerts" ? "" : "alerts")}
+                >
+                  Alerts & account
+                  <span className="text-sm">{openDropdown === "alerts" ? "▲" : "▼"}</span>
+                </button>
+                {openDropdown === "alerts" && (
+                  <div className="pl-4 space-y-1">
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      My account
+                    </button>
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Emergency SOS
+                    </button>
+                    <button
+                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/notifications");
+                      }}
+                    >
+                      Notifications
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* User preference */}
+              <div>
+                <button
+                  className="w-full text-left font-semibold py-3 px-3 rounded-lg hover:bg-blue-50 flex justify-between items-center text-blue-600"
+                  onClick={() => setOpenDropdown(openDropdown === "preference" ? "" : "preference")}
+                >
+                  User preference
+                  <span className="text-sm">{openDropdown === "preference" ? "▲" : "▼"}</span>
+                </button>
+                {openDropdown === "preference" && (
+                  <div className="pl-4 space-y-1">
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Change city
+                    </button>
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Settings
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Essentials */}
+              <div>
+                <button
+                  className="w-full text-left font-semibold py-3 px-3 rounded-lg hover:bg-blue-50 flex justify-between items-center text-blue-600"
+                  onClick={() => setOpenDropdown(openDropdown === "essentials" ? "" : "essentials")}
+                >
+                  Essentials
+                  <span className="text-sm">{openDropdown === "essentials" ? "▲" : "▼"}</span>
+                </button>
+                {openDropdown === "essentials" && (
+                  <div className="pl-4 space-y-1">
+                    <button
+                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/lostFound");
+                      }}
+                    >
+                      Lost & Found
+                    </button>
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Booking
+                    </button>
+                    <button className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm">
+                      Cancellations
+                    </button>
+                    <button
+                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/wallet");
+                      }}
+                    >
+                      Wallet
+                    </button>
+                    <button
+                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-blue-50 text-blue-600 text-sm"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/wishlist");
+                      }}
+                    >
+                      Wishlist
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Logout button */}
+            <div className="pt-4 border-t">
+              <button
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                onClick={() => {
+                  setMenuOpen(false);
+                  handleLogout();
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
-      <div className="bg-gray-100 rounded-t-3xl p-4">
-        {/* Quick Actions Carousel */}
+      <div className="bg-gray-50 rounded-t-3xl px-3 py-4 sm:px-4 lg:px-6 min-h-screen">
+        {/* Quick Actions */}
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3">Quick Actions</h2>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 text-gray-800">Quick Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <button
               onClick={() => navigate("/search-bus")}
-              className="flex-shrink-0 bg-blue-600 text-white p-4 rounded-xl min-w-[120px] text-center hover:bg-blue-700 transition-colors"
+              className="bg-blue-600 text-white p-4 rounded-xl text-center hover:bg-blue-700 transition-colors shadow-sm"
             >
               <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -519,7 +381,7 @@ const HomePage = () => {
             </button>
             <button
               onClick={() => navigate("/route-planner")}
-              className="flex-shrink-0 bg-green-600 text-white p-4 rounded-xl min-w-[120px] text-center hover:bg-green-700 transition-colors"
+              className="bg-green-600 text-white p-4 rounded-xl text-center hover:bg-green-700 transition-colors shadow-sm"
             >
               <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 013.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -528,21 +390,31 @@ const HomePage = () => {
             </button>
             <button
               onClick={() => navigate("/wallet")}
-              className="flex-shrink-0 bg-orange-600 text-white p-4 rounded-xl min-w-[120px] text-center hover:bg-orange-700 transition-colors"
+              className="bg-orange-600 text-white p-4 rounded-xl text-center hover:bg-orange-700 transition-colors shadow-sm"
             >
               <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               <span className="text-sm font-medium">Wallet</span>
             </button>
+            <button
+              onClick={() => navigate("/live-track")}
+              className="bg-purple-600 text-white p-4 rounded-xl text-center hover:bg-purple-700 transition-colors shadow-sm"
+            >
+              <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-sm font-medium">Live Track</span>
+            </button>
           </div>
         </div>
 
-        {/* Recent Searches Carousel */}
+        {/* Recent Searches */}
         {recentSearches.length > 0 && (
           <div className="mb-6">
-            <h2 className="text-lg font-semibold mb-3">Recent Searches</h2>
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 text-gray-800">Recent Searches</h2>
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {recentSearches.slice(0, 5).map((search) => (
                 <button
                   key={search.id}
@@ -566,20 +438,21 @@ const HomePage = () => {
           </div>
         )}
 
-        {/* Nearby Stops Carousel */}
+        {/* Nearby Stops */}
         <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3">Nearby Stops</h2>
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 text-gray-800">Nearby Stops</h2>
           {loadingNearby ? (
-            <div className="text-center py-4 text-gray-500">
+            <div className="text-center py-8 text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
               Loading nearby routes...
             </div>
           ) : nearbyRoutes.length === 0 ? (
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {['Baramunda ISBT', 'Master Canteen', 'Nandankanan'].map((stop, index) => (
                 <button
                   key={index}
                   onClick={() => navigate('/search-bus', { state: { from: stop } })}
-                  className="flex-shrink-0 bg-white rounded-xl p-4 shadow-sm border min-w-[140px] hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24">
@@ -587,18 +460,18 @@ const HomePage = () => {
                     </svg>
                     <span className="text-xs text-green-600">Near</span>
                   </div>
-                  <p className="text-sm font-medium text-gray-800">{stop}</p>
+                  <p className="text-sm font-medium text-gray-800 text-left">{stop}</p>
                   <p className="text-xs text-gray-500 mt-1">{Math.floor(Math.random() * 800) + 200}m away</p>
                 </button>
               ))}
             </div>
           ) : (
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-              {nearbyRoutes.slice(0, 5).map((route) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {nearbyRoutes.slice(0, 6).map((route) => (
                 <button
                   key={route.id}
                   onClick={() => navigate('/search-bus', { state: { from: route.start_point } })}
-                  className="flex-shrink-0 bg-white rounded-xl p-4 shadow-sm border min-w-[160px] hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24">
@@ -606,9 +479,9 @@ const HomePage = () => {
                     </svg>
                     <span className="text-xs text-green-600">Nearby</span>
                   </div>
-                  <p className="text-sm font-medium text-gray-800">{route.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">{route.start_point}</p>
-                  <p className="text-xs text-gray-500">Next bus: 5 mins</p>
+                  <p className="text-sm font-medium text-gray-800 text-left truncate">{route.name}</p>
+                  <p className="text-xs text-gray-500 mt-1 truncate">{route.start_point}</p>
+                  <p className="text-xs text-gray-500">Next: 5 mins</p>
                 </button>
               ))}
             </div>
@@ -616,24 +489,30 @@ const HomePage = () => {
         </div>
 
         {/* Offers and Coupons */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3">Offers and Coupons</h2>
+        <div className="mb-20">
+          <h2 className="text-lg sm:text-xl font-semibold mb-3 text-gray-800">Offers & Coupons</h2>
           <div 
             onClick={() => navigate("/coupons")}
-            className="bg-blue-600 rounded-xl p-5 text-white cursor-pointer hover:shadow-xl transition-all duration-200"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-5 sm:p-6 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
           >
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between  items-center">
               <div className="flex-1">
                 <div className="flex items-center mb-3">
-                  <span className="bg-white text-blue-600 px-3 py-1 rounded-full text-xs font-bold">5 OFFERS</span>
+                  <span className="bg-white text-blue-600 px-3 py-1 rounded-full text-xs font-bold mr-2">5 OFFERS</span>
+                  <span className="bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold">NEW</span>
                 </div>
-                <h3 className="font-bold text-2xl mb-1">Up to ₹300 OFF</h3>
-                <p className="text-sm font-medium opacity-90">Exclusive Offers Available</p>
-                <p className="text-xs opacity-80 mt-2 bg-white bg-opacity-20 rounded-full px-3 py-1 inline-block">Tap to view all offers</p>
+                <h3 className="font-bold text-xl sm:text-2xl mb-1">Up to ₹300 OFF</h3>
+                <p className="text-sm font-medium opacity-90 mb-2">Exclusive Offers Available</p>
+                <div className="flex items-center text-xs opacity-80">
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Valid till Sept 30, 2025
+                </div>
               </div>
-              <div className="text-right">
-                <div className="w-20 h-20 bg-white bg-opacity-90 rounded-2xl flex items-center justify-center mb-3">
-                  <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex-shrink-0 ml-4 ">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center">
+                  <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
                   </svg>
                 </div>
@@ -641,7 +520,7 @@ const HomePage = () => {
             </div>
           </div>
         </div>
-
+<div className="mb-[20%]"></div>
         {/* Bottom Navigation */}
         <BottomNav />
       </div>
