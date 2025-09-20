@@ -19,6 +19,7 @@ const SearchBus = () => {
   const [foundRoutes, setFoundRoutes] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [selectedDays, setSelectedDays] = useState({});
 
   useEffect(() => {
     // Handle location passed from HomePage
@@ -517,67 +518,140 @@ const SearchBus = () => {
             
             {foundRoutes.length > 0 ? (
               <div className="divide-y">
-                {foundRoutes.map((route, index) => (
-                  <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: route.color }}
-                        ></div>
-                        <span className="font-semibold text-gray-800">Route {route.route_id}</span>
+                {foundRoutes.map((route, index) => {
+                  // Get current day of week (0=Sunday, 1=Monday, etc.)
+                  const today = new Date().getDay();
+                  const currentDayIndex = today === 0 ? 6 : today - 1; // Convert to Monday=0 format
+                  
+                  // Generate weekly status with higher delay probability at start of week
+                  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                  const weeklyStatus = weekDays.map((day, dayIndex) => {
+                    const delayProbability = 0.7 - (dayIndex * 0.08);
+                    const isDelayed = Math.random() < delayProbability;
+                    const delayMinutes = isDelayed ? Math.floor(Math.random() * 25) + 5 : 0; // 5-30 min delay
+                    const isPast = dayIndex < currentDayIndex;
+                    const isToday = dayIndex === currentDayIndex;
+                    const isFuture = dayIndex > currentDayIndex;
+                    
+                    return { 
+                      day, 
+                      isDelayed, 
+                      delayMinutes, 
+                      isPast, 
+                      isToday, 
+                      isFuture 
+                    };
+                  });
+                  
+                  const selectedDay = selectedDays[`route-${index}`];
+                  
+                  return (
+                    <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: route.color }}
+                          ></div>
+                          <span className="font-semibold text-gray-800">Route {route.route_id}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-green-600">₹{route.fare}</div>
+                          <div className="text-xs text-gray-500">{route.estimatedTime} mins</div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold text-green-600">₹{route.fare}</div>
-                        <div className="text-xs text-gray-500">{route.estimatedTime} mins</div>
+                      
+                      {/* Weekly Calendar */}
+                      <div className="mb-3">
+                        <div className="text-xs text-gray-500 mb-1">Weekly Status</div>
+                        <div className="flex gap-1">
+                          {weeklyStatus.map((status, dayIndex) => (
+                            <div key={dayIndex} className="flex flex-col items-center">
+                              <div className="text-xs text-gray-600 mb-1">{status.day}</div>
+                              <button
+                                onClick={() => setSelectedDays(prev => ({
+                                  ...prev,
+                                  [`route-${index}`]: prev[`route-${index}`] === dayIndex ? null : dayIndex
+                                }))}
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                  status.isFuture 
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : status.isDelayed 
+                                    ? 'bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer' 
+                                    : 'bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer'
+                                } ${
+                                  status.isToday ? 'ring-2 ring-blue-400' : ''
+                                }`}
+                                disabled={status.isFuture}
+                              >
+                                {status.isFuture ? '?' : status.isDelayed ? '⚠' : '✓'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Delay Details */}
+                        {selectedDay !== null && selectedDay !== undefined && !weeklyStatus[selectedDay]?.isFuture && (
+                          <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="text-xs font-medium text-blue-800">
+                              {weekDays[selectedDay]} - {selectedDay === currentDayIndex ? 'Today' : 'Past'}
+                            </div>
+                            <div className="text-sm text-blue-700">
+                              {weeklyStatus[selectedDay]?.isDelayed 
+                                ? `Delayed by ${weeklyStatus[selectedDay].delayMinutes} minutes`
+                                : 'On time'
+                              }
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-sm text-gray-600 mb-2">
+                        {route.stops.length} stops • {route.distance} stops apart
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1">
+                        {route.stops.slice(0, 3).map((stop, stopIndex) => (
+                          <span key={stopIndex} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {stop}
+                          </span>
+                        ))}
+                        {route.stops.length > 3 && (
+                          <span className="text-xs text-gray-500">
+                            +{route.stops.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="mt-3 flex gap-2">
+                        <button 
+                          onClick={() => navigate('/bus-status', { 
+                            state: { 
+                              route: route,
+                              from: from,
+                              to: to
+                            }
+                          })}
+                          className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                        >
+                          Track Bus
+                        </button>
+                        <button 
+                          onClick={() => navigate('/live-tracking', { 
+                            state: { 
+                              from: from,
+                              to: to,
+                              route: route
+                            }
+                          })}
+                          className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                        >
+                          View Route
+                        </button>
                       </div>
                     </div>
-                    
-                    <div className="text-sm text-gray-600 mb-2">
-                      {route.stops.length} stops • {route.distance} stops apart
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1">
-                      {route.stops.slice(0, 3).map((stop, stopIndex) => (
-                        <span key={stopIndex} className="text-xs bg-gray-100 px-2 py-1 rounded">
-                          {stop}
-                        </span>
-                      ))}
-                      {route.stops.length > 3 && (
-                        <span className="text-xs text-gray-500">
-                          +{route.stops.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="mt-3 flex gap-2">
-                      <button 
-                        onClick={() => navigate('/bus-status', { 
-                          state: { 
-                            route: route,
-                            from: from,
-                            to: to
-                          }
-                        })}
-                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                      >
-                        Track Bus
-                      </button>
-                      <button 
-                        onClick={() => navigate('/live-tracking', { 
-                          state: { 
-                            from: from,
-                            to: to,
-                            route: route
-                          }
-                        })}
-                        className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-                      >
-                        View Route
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : !isSearching && from && to && (
               <div className="p-4 text-center text-gray-500">

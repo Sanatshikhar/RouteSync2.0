@@ -16,6 +16,7 @@ import BookingHistory from './components/pages/bookingHistory';
 import Settings from './components/pages/settings';
 import LostFoundPage from './components/pages/lostFound';
 import WishlistPage from './components/pages/wishlist';
+import Coupons from './components/pages/coupons';
 import RoutePlanner from './components/pages/routePlanner';
 import AdminDashboard from './components/admin/admin';
 import TransportDashboard from './components/TransportDashboard';
@@ -45,7 +46,7 @@ function App() {
                 <Route path="/search-bus" element={<SearchBus />} />
                 <Route path="/listbus" element={<ListBus />} />
                 {/* Protected features for users */}
-                <Route path="/live-tracking" element={<ProtectedRoute><LiveTracking /></ProtectedRoute>} />
+                <Route path="/bus-status" element={<ProtectedRoute><LiveTracking /></ProtectedRoute>} />
                 <Route path="/boarding" element={<ProtectedRoute><Boarding /></ProtectedRoute>} />
                 <Route path="/payment" element={<ProtectedRoute><PaymentSystem /></ProtectedRoute>} />
                 <Route path="/ticket" element={<ProtectedRoute><TicketList /></ProtectedRoute>} />
@@ -57,6 +58,7 @@ function App() {
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                 <Route path="/lostFound" element={<ProtectedRoute><LostFoundPage /></ProtectedRoute>} />
                 <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
+                <Route path="/coupons" element={<Coupons />} />
                 {/* Admin protected route */}
                 <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
                 {/* Transporter protected route */}

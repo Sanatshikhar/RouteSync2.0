@@ -661,32 +661,25 @@ const HomePage = () => {
         {/* Offers and Coupons */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Offers and Coupons</h2>
-          <div className="bg-green-50 rounded-xl p-4 mb-3">
+          <div 
+            onClick={() => navigate("/coupons")}
+            className="bg-blue-600 rounded-xl p-5 text-white cursor-pointer hover:shadow-xl transition-all duration-200"
+          >
             <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-medium">Save upto Rs 200 on bus tickets</h3>
-                <p className="text-sm text-gray-500">Valid till 30 Dec</p>
-                <button
-                  onClick={() => navigate("/list-bus")}
-                  className="mt-2 bg-blue-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                >
-                  Book now
-                </button>
+              <div className="flex-1">
+                <div className="flex items-center mb-3">
+                  <span className="bg-white text-blue-600 px-3 py-1 rounded-full text-xs font-bold">5 OFFERS</span>
+                </div>
+                <h3 className="font-bold text-2xl mb-1">Up to ₹300 OFF</h3>
+                <p className="text-sm font-medium opacity-90">Exclusive Offers Available</p>
+                <p className="text-xs opacity-80 mt-2 bg-white bg-opacity-20 rounded-full px-3 py-1 inline-block">Tap to view all offers</p>
               </div>
-              <div className="w-24 h-16 bg-white rounded-lg shadow flex items-center justify-center">
-                <svg
-                  className="w-8 h-8 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                  />
-                </svg>
+              <div className="text-right">
+                <div className="w-20 h-20 bg-white bg-opacity-90 rounded-2xl flex items-center justify-center mb-3">
+                  <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
               </div>
             </div>
           </div>

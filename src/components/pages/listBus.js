@@ -12,6 +12,7 @@ const ListBus = () => {
   const [buses, setBuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedDays, setSelectedDays] = useState({});
   const { from, to, date, foundRoutes } = location.state || {};
 
   // Get real route data using OpenRouter service
@@ -711,6 +712,77 @@ const ListBus = () => {
                   </div>
 
 
+
+                  {/* Weekly Calendar */}
+                  {(() => {
+                    const today = new Date().getDay();
+                    const currentDayIndex = today === 0 ? 6 : today - 1;
+                    const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+                    const weeklyStatus = weekDays.map((day, dayIndex) => {
+                      const delayProbability = 0.7 - (dayIndex * 0.08);
+                      let isDelayed, delayMinutes;
+                      
+                      // For today, use the actual bus status
+                      if (dayIndex === currentDayIndex) {
+                        isDelayed = bus.status === "Delayed";
+                        delayMinutes = isDelayed ? bus.delay || 0 : 0;
+                      } else {
+                        // For other days, use randomized data
+                        isDelayed = Math.random() < delayProbability;
+                        delayMinutes = isDelayed ? Math.floor(Math.random() * 25) + 5 : 0;
+                      }
+                      
+                      const isPast = dayIndex < currentDayIndex;
+                      const isToday = dayIndex === currentDayIndex;
+                      const isFuture = dayIndex > currentDayIndex;
+                      return { day, isDelayed, delayMinutes, isPast, isToday, isFuture };
+                    });
+                    const selectedDay = selectedDays[`bus-${index}`];
+                    
+                    return (
+                      <div className="mb-4">
+                        <div className="text-xs text-gray-500 mb-2">Weekly Status</div>
+                        <div className="flex gap-1 mb-2">
+                          {weeklyStatus.map((status, dayIndex) => (
+                            <div key={dayIndex} className="flex flex-col items-center">
+                              <div className="text-xs text-gray-600 mb-1">{status.day}</div>
+                              <button
+                                onClick={() => setSelectedDays(prev => ({
+                                  ...prev,
+                                  [`bus-${index}`]: prev[`bus-${index}`] === dayIndex ? null : dayIndex
+                                }))}
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                  status.isFuture 
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : status.isDelayed 
+                                    ? 'bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer' 
+                                    : 'bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer'
+                                } ${
+                                  status.isToday ? 'ring-2 ring-blue-400' : ''
+                                }`}
+                                disabled={status.isFuture}
+                              >
+                                {status.isFuture ? '?' : status.isDelayed ? '⚠' : '✓'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        {selectedDay !== null && selectedDay !== undefined && !weeklyStatus[selectedDay]?.isFuture && (
+                          <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="text-xs font-medium text-blue-800">
+                              {weekDays[selectedDay]} - {selectedDay === currentDayIndex ? 'Today' : 'Past'}
+                            </div>
+                            <div className="text-sm text-blue-700">
+                              {weeklyStatus[selectedDay]?.isDelayed 
+                                ? `Delayed by ${weeklyStatus[selectedDay].delayMinutes} minutes`
+                                : 'On time'
+                              }
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Status and Stats */}
                   <div className="flex justify-between items-center mb-4">
