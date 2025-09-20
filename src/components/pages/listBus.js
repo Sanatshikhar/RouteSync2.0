@@ -289,10 +289,10 @@ const ListBus = () => {
       if (realBuses.length > 0) {
         for (let i = 0; i < Math.min(realBuses.length, 6); i++) {
           const bus = realBuses[i];
-          const matchingRoute = routes.find(route => 
-            route.route_id === bus.route_id || 
-            route.route_id === bus.expand?.route_id?.route_number
-          );
+            const matchingRoute = routes.find(route => 
+            route.name === bus.route_id || 
+            route.name === bus.expand?.route_id?.route_number
+            );
           
           if (matchingRoute) {
             // Get real-time crowd data
